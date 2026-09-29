@@ -4,7 +4,8 @@ Weekly redraft fantasy football for the SEC. Each week, users draft seven
 players (QB, 2 RB, 2 WR, TE, FLEX) under a 100-credit salary cap. Scoring is
 standard PPR, and each player locks when their own game kicks off.
 
-The full product requirements are in [docs/PRD.md](docs/PRD.md).
+The full product requirements are in [docs/PRD.md](docs/PRD.md), and how the
+system is built is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Tech stack
 
@@ -30,6 +31,7 @@ The full product requirements are in [docs/PRD.md](docs/PRD.md).
 | `supabase/migrations` | Database schema, lineup rules and Row Level Security |
 | `supabase/tests` | Database tests |
 | `docs/PRD.md` | Product requirements |
+| `docs/ARCHITECTURE.md` | How the system fits together |
 
 ## Local setup
 
