@@ -1,0 +1,8 @@
+@AGENTS.md
+
+# SEC Gridiron 100
+
+- Product requirements: `docs/PRD.md`. The build follows its Section 5 phases in order.
+- Database schema: `supabase/migrations/`. Add new migrations rather than editing applied ones.
+- After changing SQL, run `npm run test:db` against a local Postgres; after changing app code, run `npm run lint` and `npm run build`.
+- `src/lib/supabase/admin.ts` uses the secret key and bypasses Row Level Security. Only trusted server code (scheduled jobs) may import it.
