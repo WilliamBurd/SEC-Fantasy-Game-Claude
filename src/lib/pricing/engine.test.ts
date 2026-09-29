@@ -15,6 +15,7 @@ function player(position: Position, ppg: number, overrides: Partial<PricingInput
     currentSeasonPpg: null,
     gamesPlayed: 0,
     previousSalary: null,
+    starterShare: 1,
     ...overrides,
   };
 }
@@ -40,6 +41,17 @@ describe("blendedPpg", () => {
     // 0.5 * 12 + 0.5 * 4 = 8
     const freshman = player("WR", 0, { priorSeasonPpg: null, projectedPpg: 4, currentSeasonPpg: 12, gamesPlayed: 3 });
     expect(blendedPpg(freshman, settings)).toBeCloseTo(8);
+  });
+
+  it("scales last season and the projection by starter share, but not this season", () => {
+    // A backup QB: great last season, 1 game this season, starter share 0.2.
+    // Current weight 1/4: 0.25 * 8 + 0.75 * (30 * 0.2) = 6.5
+    const backup = player("QB", 30, { currentSeasonPpg: 8, gamesPlayed: 1, starterShare: 0.2 });
+    expect(blendedPpg(backup, settings)).toBeCloseTo(6.5);
+  });
+
+  it("prices a player who hasn't played for his team lately at nothing but this season", () => {
+    expect(blendedPpg(player("RB", 20, { starterShare: 0 }), settings)).toBe(0);
   });
 });
 

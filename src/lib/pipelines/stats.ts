@@ -3,8 +3,9 @@ import { parseGamePlayerStats, type StatLine } from "@/lib/scoring/box-score";
 
 import type { JobContext } from "./context";
 import { selectAll, upsertAll } from "./db";
+import type { UsageRow } from "./starter-share";
 
-export type GameStatRow = { player_id: number; week: number; fantasy_points: number };
+export type GameStatRow = UsageRow & { fantasy_points: number };
 
 /** Points per game and games played for each player, from player_game_stats rows. */
 export function summarizeGames(rows: Pick<GameStatRow, "player_id" | "fantasy_points">[]) {
@@ -58,7 +59,7 @@ export async function loadGameStats(ctx: JobContext, season: number, beforeWeek?
   return selectAll<GameStatRow>("load game stats", (from, to) => {
     let query = ctx.db
       .from("player_game_stats")
-      .select("player_id, week, fantasy_points")
+      .select("player_id, game_id, week, team, pass_att, rush_att, receptions, fantasy_points")
       .eq("season", season);
     if (beforeWeek !== undefined) query = query.lt("week", beforeWeek).eq("season_type", "regular");
     return query.order("player_id").order("game_id").range(from, to);

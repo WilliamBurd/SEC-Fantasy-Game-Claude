@@ -94,6 +94,11 @@ describe("parseGamePlayerStats", () => {
     expect(byId(5003)).toMatchObject({ receptions: 8, rec_yds: 121, rec_td: 1 });
   });
 
+  it("reads pass attempts from C/ATT and carries from CAR", () => {
+    expect(byId(5001)).toMatchObject({ pass_att: 31, rush_att: 6 });
+    expect(byId(5002)).toMatchObject({ pass_att: 0, rush_att: 18 });
+  });
+
   it("keeps a line for a player who played but has no scoring stats", () => {
     expect(byId(6001)).toMatchObject({ team: "Georgia", pass_yds: 0, rush_yds: 0, receptions: 0 });
     expect(byId(7001)).toMatchObject({ team: "Kentucky", receptions: 0, rec_yds: 0 });

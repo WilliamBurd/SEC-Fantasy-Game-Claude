@@ -25,6 +25,16 @@ export type PricingSettings = {
   top_lineup_target: number;
   /** Preseason projection for players with no college stats, by position and recruiting stars ("0" = unrated). */
   freshman_projection: Record<Position, Record<string, number>>;
+  /**
+   * Starter share: how much of the position group's work (QB pass attempts,
+   * RB carries, WR/TE catches) a player did over the team's last
+   * `window_games` games, divided by `full_share` and capped at 1. It scales
+   * the last-season and projection part of Blended PPG.
+   */
+  starter_share: {
+    window_games: number;
+    full_share: Record<Position, number>;
+  };
 };
 
 export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
@@ -41,6 +51,10 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
     RB: { "5": 7, "4": 4, "3": 2, "0": 1 },
     WR: { "5": 6, "4": 3.5, "3": 2, "0": 1 },
     TE: { "5": 3, "4": 2, "3": 1, "0": 0.5 },
+  },
+  starter_share: {
+    window_games: 3,
+    full_share: { QB: 0.7, RB: 0.25, WR: 0.15, TE: 0.45 },
   },
 };
 

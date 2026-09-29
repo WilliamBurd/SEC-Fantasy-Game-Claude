@@ -22,6 +22,7 @@
 - **SEC-vs-SEC only:** the player pool each week is limited to players whose team plays another SEC team that week. Non-conference games still count toward a player's points per game for pricing.
 - **Contest starts in Week 3:** Weeks 1 and 2 have few or no SEC-vs-SEC games, so the contest starts in Week 3 (a setting). From then on, every week with an SEC-vs-SEC game runs.
 - **Pricing:** the placeholder tiers are replaced by value-over-fringe pricing (2.5). The formula is agreed in principle and will be tuned once real prices can be seen.
+- **Starter share:** after the first dry run with real data, backups and players who hadn't played this season were priced like starters from last season's stats alone. Last season and the projection are now scaled by starter share (2.5).
 
 ## 1. Product Overview
 
@@ -74,7 +75,8 @@ A weekly redraft college football fantasy app focused exclusively on the SEC. Us
 
 - This season's weight grows with games played: Current Season weight = G / (G + 3), where G is the number of games the player has played this season. After 3 games, this season counts for 50%. After 9 games, it counts for 75%.
 - The remaining weight is split between Prior Season PPG and Preseason Projection in the same 60/40 ratio as Week 1, or goes fully to the Preseason Projection for players with no previous college data. Last season always keeps some influence.
-- All weights (60/40 and the "+3") are stored as configuration so they can be tuned without code changes.
+- **Starter share:** last season and the projection assume the player still has the same role, so both are multiplied by the player's starter share (0 to 1) before blending. This season's points are not. Starter share is the player's part of their position group's work over their team's last 3 games (pass attempts for QBs, carries for RBs, catches for WRs and TEs), divided by the share that counts as a full starter (QB 70%, RB 25%, WR 15%, TE 45%) and capped at 1. A missed game counts as no work, so backups and players who haven't been playing (for example, injured) aren't priced like starters, and a returning player's share recovers as they play. Before a team's first game, everyone's starter share is 1.
+- All weights (60/40, the "+3" and the starter share window and thresholds) are stored as configuration so they can be tuned without code changes.
 
 **Blended PPG to salary** (to be tuned once real prices are available)
 
@@ -86,7 +88,7 @@ Prices follow a straight line from each position's fringe level, so any lineup t
 4. **Weekly limit:** after a player's first priced week, a salary moves at most 4 credits from the previous week.
 5. Salaries are rounded and kept between 5 and 30.
 
-The fringe depths, the 145 target, the weekly limit, the salary range and the blending weights are all stored in the app_settings table, so they can be tuned from the admin screen.
+The fringe depths, the 145 target, the weekly limit, the salary range, the blending weights and the starter share settings are all stored in the app_settings table, so they can be tuned from the admin screen.
 
 Salaries for a week are set on Tuesday morning and don't change for that week, unless an admin overrides one before the week's first kickoff.
 
@@ -127,6 +129,8 @@ The Phase 2 migration, [`supabase/migrations/20260930000000_data_pipelines.sql`]
 - `app_settings`: the season and pricing settings (first contest week, blending weights, fringe depths, top-lineup target, weekly limit, salary range, freshman projections). Readable by everyone, editable by admins.
 - `player_game_stats`: one stat line per player per game, for every game an SEC-rostered player played, last season and non-conference games included. The pricing engine reads points per game from it.
 - `ppr_points()`: the PPR formula as a function, shared by the stat tables.
+
+The starter share migration, [`supabase/migrations/20261001000000_starter_share.sql`](../supabase/migrations/20261001000000_starter_share.sql), adds pass attempts and carries to `player_game_stats`, the starter share each salary was priced with to `player_weekly_stats`, and the starter share settings to `app_settings`.
 
 ### 3.1. Lineup Validation (Database Trigger)
 

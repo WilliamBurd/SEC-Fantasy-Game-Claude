@@ -5,9 +5,11 @@ export type StatLine = {
   player_id: number;
   game_id: number;
   team: string;
+  pass_att: number;
   pass_yds: number;
   pass_td: number;
   interceptions: number;
+  rush_att: number;
   rush_yds: number;
   rush_td: number;
   receptions: number;
@@ -19,10 +21,11 @@ export type StatLine = {
 type StatColumn = Exclude<keyof StatLine, "player_id" | "game_id" | "team">;
 
 // CFBD box score category -> stat type -> our column. Other categories
-// (defense, kicking, ...) and stat types (AVG, LONG, C/ATT, QBR, ...) are ignored.
+// (defense, kicking, ...) and stat types (AVG, LONG, QBR, ...) are ignored.
+// Attempts and carries don't score; they measure a player's role (starter share).
 const COLUMNS: Record<string, Record<string, StatColumn>> = {
-  passing: { YDS: "pass_yds", TD: "pass_td", INT: "interceptions" },
-  rushing: { YDS: "rush_yds", TD: "rush_td" },
+  passing: { "C/ATT": "pass_att", YDS: "pass_yds", TD: "pass_td", INT: "interceptions" },
+  rushing: { CAR: "rush_att", YDS: "rush_yds", TD: "rush_td" },
   receiving: { REC: "receptions", YDS: "rec_yds", TD: "rec_td" },
   fumbles: { LOST: "fumbles_lost" },
 };
@@ -32,9 +35,11 @@ function emptyLine(playerId: number, gameId: number, team: string): StatLine {
     player_id: playerId,
     game_id: gameId,
     team,
+    pass_att: 0,
     pass_yds: 0,
     pass_td: 0,
     interceptions: 0,
+    rush_att: 0,
     rush_yds: 0,
     rush_td: 0,
     receptions: 0,
@@ -45,7 +50,8 @@ function emptyLine(playerId: number, gameId: number, team: string): StatLine {
 }
 
 function parseStat(value: string): number {
-  const n = Number.parseInt(value, 10);
+  // C/ATT arrives as "completions/attempts"; keep the attempts.
+  const n = Number.parseInt(value.includes("/") ? value.slice(value.indexOf("/") + 1) : value, 10);
   return Number.isFinite(n) ? n : 0;
 }
 

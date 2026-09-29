@@ -14,12 +14,15 @@ export type PricingInput = {
   gamesPlayed: number;
   /** Salary in the most recent earlier week this season, if priced then. */
   previousSalary: number | null;
+  /** Starter share, 0 to 1 (1 before the team has played). Scales last season and the projection. */
+  starterShare: number;
 };
 
 export type PricedPlayer = {
   playerId: number;
   position: Position;
   blendedPpg: number;
+  starterShare: number;
   /** Points per game above the position's fringe level (never below 0). */
   value: number;
   salary: number;
@@ -39,9 +42,14 @@ export type PricingResult = {
   };
 };
 
+const clamp = (n: number, low: number, high: number) => Math.min(high, Math.max(low, n));
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 /**
  * Blended PPG (PRD 2.5): last season, the preseason projection and this
- * season, with this season's weight growing as G / (G + offset).
+ * season, with this season's weight growing as G / (G + offset). Last season
+ * and the projection are scaled by starter share, since they assume the
+ * player still has a starter's role.
  */
 export function blendedPpg(input: PricingInput, settings: PricingSettings): number {
   const g = input.currentSeasonPpg === null ? 0 : input.gamesPlayed;
@@ -54,11 +62,11 @@ export function blendedPpg(input: PricingInput, settings: PricingSettings): numb
           settings.projection_weight * input.projectedPpg) /
         (settings.prior_season_weight + settings.projection_weight);
 
-  return currentWeight * (input.currentSeasonPpg ?? 0) + (1 - currentWeight) * baseline;
+  return (
+    currentWeight * (input.currentSeasonPpg ?? 0) +
+    (1 - currentWeight) * baseline * clamp(input.starterShare, 0, 1)
+  );
 }
-
-const clamp = (n: number, low: number, high: number) => Math.min(high, Math.max(low, n));
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Prices one week's player pool (PRD 2.5):
@@ -114,6 +122,7 @@ export function priceWeek(inputs: PricingInput[], settings: PricingSettings): Pr
       playerId: input.playerId,
       position: input.position,
       blendedPpg: round2(ppg),
+      starterShare: round2(input.starterShare),
       value: round2(value),
       salary,
     };

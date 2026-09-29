@@ -3,6 +3,7 @@ import type { Position } from "@/lib/pricing/settings";
 
 import type { JobContext } from "./context";
 import { check, loadSettings, logChanges, selectAll, upsertAll } from "./db";
+import { starterShares } from "./starter-share";
 import { loadGameStats, summarizeGames } from "./stats";
 
 export type SalaryRun =
@@ -76,7 +77,16 @@ export async function generateSalaries(ctx: JobContext, season: number, week: nu
     ).map((p) => [p.player_id, p]),
   );
 
-  const current = summarizeGames(await loadGameStats(ctx, season, week));
+  const lines = await loadGameStats(ctx, season, week);
+  const current = summarizeGames(lines);
+  const positionOf = new Map(
+    (
+      await selectAll<{ id: number; position: Position }>("load positions", (from, to) =>
+        ctx.db.from("players").select("id, position").order("id").range(from, to),
+      )
+    ).map((p) => [p.id, p.position]),
+  );
+  const shares = starterShares(lines, players, positionOf, settings.pricing.starter_share);
 
   // Most recent earlier salary this season, and this week's admin overrides.
   const weekly = await selectAll<{ player_id: number; week: number; salary: number; salary_overridden: boolean }>(
@@ -113,6 +123,7 @@ export async function generateSalaries(ctx: JobContext, season: number, week: nu
       currentSeasonPpg: thisSeason?.ppg ?? null,
       gamesPlayed: thisSeason?.games ?? 0,
       previousSalary: previousSalary.get(p.id) ?? null,
+      starterShare: shares.get(p.id) ?? 1,
     };
   });
 
@@ -130,6 +141,7 @@ export async function generateSalaries(ctx: JobContext, season: number, week: nu
         week,
         game_id: gameOfTeam.get(teamOf.get(p.playerId)!)!,
         blended_ppg: p.blendedPpg,
+        starter_share: p.starterShare,
         salary: p.salary,
       })),
     "player_id,week,season",
