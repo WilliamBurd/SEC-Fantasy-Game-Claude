@@ -4,7 +4,7 @@
 #   PGHOST=... PGPORT=... PGUSER=postgres scripts/test-db.sh
 #
 # Creates a fresh database, loads a stand-in for Supabase's auth schema and
-# roles, applies every migration in order, then runs supabase/tests/schema_test.sql.
+# roles, applies every migration in order, then runs each supabase/tests/*_test.sql.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -20,6 +20,10 @@ for migration in supabase/migrations/*.sql; do
   echo "Applying $migration"
   run -f "$migration"
 done
-run -o /dev/null -f supabase/tests/schema_test.sql
+run -o /dev/null -f supabase/tests/helpers.sql
+for test in supabase/tests/*_test.sql; do
+  echo "Running $test"
+  run -o /dev/null -f "$test"
+done
 
 dropdb "$DB"

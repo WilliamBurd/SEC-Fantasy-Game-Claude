@@ -1,0 +1,154 @@
+import { priceWeek, type PricingInput, type PricingResult } from "@/lib/pricing/engine";
+import type { Position } from "@/lib/pricing/settings";
+
+import type { JobContext } from "./context";
+import { check, loadSettings, logChanges, selectAll, upsertAll } from "./db";
+import { loadGameStats, summarizeGames } from "./stats";
+
+export type SalaryRun =
+  | { status: "skipped"; season: number; week: number; reason: string }
+  | {
+      status: "priced";
+      season: number;
+      week: number;
+      priced: number;
+      keptOverrides: number;
+      summary: Omit<PricingResult, "players">;
+    };
+
+type WeekGame = { id: number; home_team: string; away_team: string; kickoff_at: string };
+
+/**
+ * Tuesday salary generation (PRD 2.5 and Section 4). Prices every active
+ * player on a team in an SEC-vs-SEC game that week and writes
+ * player_weekly_stats rows. Salaries an admin overrode are kept. Refuses
+ * once any of the week's games has kicked off, so prices never change under
+ * a locked lineup.
+ */
+export async function generateSalaries(ctx: JobContext, season: number, week: number): Promise<SalaryRun> {
+  const settings = await loadSettings(ctx.db);
+  if (week < settings.season.first_contest_week) {
+    return { status: "skipped", season, week, reason: `The contest starts in week ${settings.season.first_contest_week}.` };
+  }
+
+  const { data: games, error: gamesError } = await ctx.db
+    .from("games")
+    .select("id, home_team, away_team, kickoff_at")
+    .eq("season", season)
+    .eq("week", week);
+  check(gamesError, "load games");
+  const weekGames = (games ?? []) as WeekGame[];
+  if (weekGames.length === 0) {
+    return { status: "skipped", season, week, reason: "No SEC-vs-SEC games that week." };
+  }
+  if (weekGames.some((g) => new Date(g.kickoff_at) <= ctx.now)) {
+    return { status: "skipped", season, week, reason: "A game that week has already kicked off." };
+  }
+
+  const gameOfTeam = new Map<string, number>();
+  for (const g of weekGames) {
+    gameOfTeam.set(g.home_team, g.id);
+    gameOfTeam.set(g.away_team, g.id);
+  }
+
+  const players = await selectAll<{ id: number; position: Position; team: string }>("load pool", (from, to) =>
+    ctx.db
+      .from("players")
+      .select("id, position, team")
+      .eq("active", true)
+      .in("team", [...gameOfTeam.keys()])
+      .order("id")
+      .range(from, to),
+  );
+
+  const projections = new Map(
+    (
+      await selectAll<{ player_id: number; prior_season_ppg: number | null; projected_ppg: number }>(
+        "load projections",
+        (from, to) =>
+          ctx.db
+            .from("player_season_projections")
+            .select("player_id, prior_season_ppg, projected_ppg")
+            .eq("season", season)
+            .order("player_id")
+            .range(from, to),
+      )
+    ).map((p) => [p.player_id, p]),
+  );
+
+  const current = summarizeGames(await loadGameStats(ctx, season, week));
+
+  // Most recent earlier salary this season, and this week's admin overrides.
+  const weekly = await selectAll<{ player_id: number; week: number; salary: number; salary_overridden: boolean }>(
+    "load salaries",
+    (from, to) =>
+      ctx.db
+        .from("player_weekly_stats")
+        .select("player_id, week, salary, salary_overridden")
+        .eq("season", season)
+        .lte("week", week)
+        .order("week", { ascending: false })
+        .order("player_id")
+        .range(from, to),
+  );
+  const previousSalary = new Map<number, number>();
+  const overridden = new Set<number>();
+  for (const row of weekly) {
+    if (row.week === week) {
+      if (row.salary_overridden) overridden.add(row.player_id);
+    } else if (!previousSalary.has(row.player_id)) {
+      previousSalary.set(row.player_id, row.salary);
+    }
+  }
+
+  const inputs: PricingInput[] = players.map((p) => {
+    const projection = projections.get(p.id);
+    const thisSeason = current.get(p.id);
+    return {
+      playerId: p.id,
+      position: p.position,
+      team: p.team,
+      priorSeasonPpg: projection?.prior_season_ppg == null ? null : Number(projection.prior_season_ppg),
+      projectedPpg: projection ? Number(projection.projected_ppg) : 0,
+      currentSeasonPpg: thisSeason?.ppg ?? null,
+      gamesPlayed: thisSeason?.games ?? 0,
+      previousSalary: previousSalary.get(p.id) ?? null,
+    };
+  });
+
+  const result = priceWeek(inputs, settings.pricing);
+  const teamOf = new Map(players.map((p) => [p.id, p.team]));
+
+  await upsertAll(
+    ctx.db,
+    "player_weekly_stats",
+    result.players
+      .filter((p) => !overridden.has(p.playerId))
+      .map((p) => ({
+        player_id: p.playerId,
+        season,
+        week,
+        game_id: gameOfTeam.get(teamOf.get(p.playerId)!)!,
+        blended_ppg: p.blendedPpg,
+        salary: p.salary,
+      })),
+    "player_id,week,season",
+  );
+
+  const summary = {
+    teamsInPool: result.teamsInPool,
+    fringeLevel: result.fringeLevel,
+    creditsPerPoint: result.creditsPerPoint,
+    budgetCheck: result.budgetCheck,
+  };
+  await logChanges(ctx.db, [{ action: "pricing_run", details: { season, week, ...summary } }]);
+
+  return {
+    status: "priced",
+    season,
+    week,
+    priced: result.players.length - overridden.size,
+    keptOverrides: overridden.size,
+    summary,
+  };
+}

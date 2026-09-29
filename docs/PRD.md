@@ -19,7 +19,9 @@
 
 - **Empty slots:** users can save a lineup with empty slots. An empty slot scores 0.
 - **Free to play:** no entry fees or cash prizes.
-- **Pricing tiers:** the tier system in 2.5 is a placeholder, to be redesigned in Phase 2.
+- **SEC-vs-SEC only:** the player pool each week is limited to players whose team plays another SEC team that week. Non-conference games still count toward a player's points per game for pricing.
+- **Contest starts in Week 3:** Weeks 1 and 2 have few or no SEC-vs-SEC games, so the contest starts in Week 3 (a setting). From then on, every week with an SEC-vs-SEC game runs.
+- **Pricing:** the placeholder tiers are replaced by value-over-fringe pricing (2.5). The formula is agreed in principle and will be tuned once real prices can be seen.
 
 ## 1. Product Overview
 
@@ -37,7 +39,7 @@ A weekly redraft college football fantasy app focused exclusively on the SEC. Us
 - **Format:** Weekly redraft. Users must submit a new lineup every week.
 - **Budget:** 100 Credits maximum. Strictly enforced on the client and server.
 - **Roster Positions (7 Total):** 1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX (RB/WR/TE). A player can fill only one slot. Slots can be left empty; an empty slot scores 0.
-- **Player Pool:** Active players on SEC teams that have a game that week. Players on a bye are not shown.
+- **Player Pool:** Active players on SEC teams playing another SEC team that week. Players on a bye or in a non-conference game are not shown.
 - **Per-player locking:** a player locks when their team's game kicks off. Once a slot's player is locked, that slot can't be changed or emptied. A player whose game has already started can't be added. Slots with unlocked players stay editable until those players' games start, including players in Thursday, Friday or late Saturday games.
 - **UI/UX:** A drag-and-drop or click-to-add interface. Shows the remaining budget as it changes. Shows each player's kickoff time and a lock icon once they're locked.
 
@@ -59,9 +61,9 @@ A weekly redraft college football fantasy app focused exclusively on the SEC. Us
 
 *Note for AI Developer:* CFBD does not provide salaries, so prices are calculated from a player's **Blended Points Per Game (Blended PPG)**. Blended PPG combines three inputs:
 
-- **Prior Season PPG:** the player's fantasy points per game last season, from CFBD season stats. Transfers keep their stats from their previous school. This is empty for players with no college stats (for example, freshmen).
-- **Preseason Projection:** an expected points-per-game figure for the coming season. It is set automatically from position, recruiting rating and last season's usage, and an admin can adjust it (see 2.7). This is the only input for freshmen, so it matters.
-- **Current Season PPG:** the player's fantasy points per game this season, over games they have played.
+- **Prior Season PPG:** the player's fantasy points per game last season, from CFBD box scores. Transfers keep their stats from their previous school. This is empty for players with no college stats (for example, freshmen).
+- **Preseason Projection:** an expected points-per-game figure for the coming season. It is set automatically: last season's points per game for returning players, or a baseline by position and recruiting stars for players with no college stats. An admin can adjust it (see 2.7). This is the only input for freshmen, so it matters.
+- **Current Season PPG:** the player's fantasy points per game this season, over every game they have played (non-conference included).
 
 **Week 1 prices**
 
@@ -74,14 +76,17 @@ A weekly redraft college football fantasy app focused exclusively on the SEC. Us
 - The remaining weight is split between Prior Season PPG and Preseason Projection in the same 60/40 ratio as Week 1, or goes fully to the Preseason Projection for players with no previous college data. Last season always keeps some influence.
 - All weights (60/40 and the "+3") are stored as configuration so they can be tuned without code changes.
 
-**Blended PPG to salary** (placeholder, to be redesigned in Phase 2)
+**Blended PPG to salary** (to be tuned once real prices are available)
 
-Rank every player in the week's pool with a Blended PPG of 2.0 or more, then assign tiers by rank. Players below 2.0 get the minimum price of 5 credits. Within each tier, the price is spread evenly from the top of the tier's range to the bottom.
+Prices follow a straight line from each position's fringe level, so any lineup that spends the full 100 credits has about the same expected points whether it's built from several stars plus fringe players or one or two stars plus lower-level starters. Each Tuesday:
 
-- Tier 1 (Stars), top 10%: 25-30 credits
-- Tier 2 (Starters), next 25%: 15-24 credits
-- Tier 3 (Role Players), next 35%: 10-14 credits
-- Tier 4 (Bargains), remaining 30%: 5-9 credits
+1. **Fringe level per position:** the Blended PPG of the first player past the starters, counted over the T teams in the week's pool: QB rank T + 1, RB rank 2T + 1, WR rank 3T + 1, TE rank T + 1.
+2. **Value:** Blended PPG minus the position's fringe level, never below 0.
+3. **Salary:** 5 + value × k, where k is set so the most expensive possible lineup (best QB, 2 RB, 2 WR, TE and FLEX) costs 145 credits. One k for every position keeps the positions balanced.
+4. **Weekly limit:** after a player's first priced week, a salary moves at most 4 credits from the previous week.
+5. Salaries are rounded and kept between 5 and 30.
+
+The fringe depths, the 145 target, the weekly limit, the salary range and the blending weights are all stored in the app_settings table, so they can be tuned from the admin screen.
 
 Salaries for a week are set on Tuesday morning and don't change for that week, unless an admin overrides one before the week's first kickoff.
 
@@ -117,6 +122,12 @@ Beyond the v2 design, the migration:
 - Adds `create_league()` and `join_league()`, so invite codes are never readable directly.
 - Adds `refresh_lineup_scores(season, week)` for the scoring jobs.
 
+The Phase 2 migration, [`supabase/migrations/20260930000000_data_pipelines.sql`](../supabase/migrations/20260930000000_data_pipelines.sql), adds:
+
+- `app_settings`: the season and pricing settings (first contest week, blending weights, fringe depths, top-lineup target, weekly limit, salary range, freshman projections). Readable by everyone, editable by admins.
+- `player_game_stats`: one stat line per player per game, for every game an SEC-rostered player played, last season and non-conference games included. The pricing engine reads points per game from it.
+- `ppr_points()`: the PPR formula as a function, shared by the stat tables.
+
 ### 3.1. Lineup Validation (Database Trigger)
 
 A *validate_lineup()* trigger runs before every insert or update on *lineups*, so the rules hold even if the client is bypassed. It rejects the save unless:
@@ -141,24 +152,29 @@ The backend will require cron jobs (via Next.js API Routes + Vercel Cron, or Sup
 - **Base URL:** <https://api.collegefootballdata.com>
 - **Auth:** Bearer Token required.
 
+Only SEC-vs-SEC games are stored in the games table. Every SEC team's games, including non-conference games, are stored as stat lines in player_game_stats for pricing.
+
+The free CFBD plan allows about 1,000 API calls a month. Each job below lists its calls; live scoring every 10 minutes on game days fits within that.
+
 ### Data Pipelines
 
-1.  **Pre-Season Setup (Run Once per Season):**
-    - Endpoints: /roster, /games, /stats/player/season (previous season), /recruiting/players
-    - Logic: Fetch rosters for all 16 SEC teams and populate the players table. Fetch the full SEC schedule with kickoff times into the games table. Calculate each player's Prior Season PPG and an automatic Preseason Projection into player_season_projections. Admins then review projections on the admin screen before Week 1 salaries are generated.
-2.  **Tuesday Morning Weekly Roster Check (Cron: Weekly, runs first):**
-    - Endpoints: /roster, /games
-    - Logic: Re-fetch all 16 SEC rosters. Add new QB/RB/WR/TE players and create an automatic projection for them. Update the team for players who moved to another SEC team. Mark players no longer on any SEC roster as inactive; never delete them, because past lineups still point to them. Admin-added players are not deactivated by this check. Refresh kickoff times for upcoming games, since TV slots are often set during the season. Record every change in the change log for the admin screen.
-3.  **Tuesday Morning Salary Generation (Cron: Weekly, runs after the roster check):**
-    - Endpoint: /stats/player/season (current season)
-    - Logic: For every active player whose team plays that week, calculate Current Season PPG and Blended PPG using the pricing engine in 2.5. Assign salaries and create player_weekly_stats rows for the upcoming week.
-4.  **Game Day Live Scoring (Cron: Every 5-10 mins while any SEC game is in progress):**
-    - Endpoint: /games/players
-    - Logic: The job runs on a schedule but does nothing unless a game in the games table has kicked off and isn't final, so Thursday, Friday and Saturday games are all covered. Fetch stats for in-progress games and store passing, rushing, receiving, interception and fumbles-lost numbers on each player's weekly row. Calculate PPR fantasy_points (Section 2.3). Update game status. Then recalculate total_score for every lineup that week, so leaderboards update live.
-    - If a player records stats but isn't in the players table, log it in the change log so an admin can add them on the admin screen.
-    - Note: Vercel's Hobby plan runs cron jobs only once a day. Frequent scoring needs a Vercel Pro plan or Supabase pg_cron.
-5.  **Monday Final Reconciliation (Cron: Weekly):**
-    - Logic: Re-fetch final stats for all of the week's games to pick up stat corrections. Recalculate fantasy_points and every lineup's total_score, then mark the week final.
+Each job is an API route, `/api/jobs/<job>`, protected by the `CRON_SECRET` bearer token.
+
+1.  **Pre-Season Setup** (`preseason-setup`, run once per season, safe to re-run; about 39 calls):
+    - Endpoints: /games, /roster, /recruiting/players, /games/players
+    - Logic: Store the season's SEC-vs-SEC games with kickoff times. Fetch all 16 SEC rosters into players, with recruiting stars from the last four recruiting classes. Store last season's box score lines for those players at any FBS school (so transfers keep their history), and this season's SEC box scores so far (for a mid-season start). Calculate each player's Prior Season PPG and automatic Preseason Projection. Admins then review projections on the admin screen.
+2.  **Weekly Roster Check** (`roster-check`, Tuesday morning, runs first; 17 calls):
+    - Endpoints: /games, /roster
+    - Logic: Refresh kickoff times, since TV slots are often set during the season. Re-fetch all 16 SEC rosters. Add new QB/RB/WR/TE players (fullbacks count as RB) with an automatic projection. Update the team for players who moved to another SEC team. Mark players no longer on any SEC roster as inactive; never delete them, because past lineups still point to them. Admin-added players are left alone. Record every change in the change log.
+3.  **Salary Generation** (`generate-salaries`, Tuesday morning, after the roster check; no CFBD calls):
+    - Logic: For the next week none of whose games has kicked off (from Week 3), price every active player on a team in an SEC-vs-SEC game, using the pricing engine in 2.5 and the stat lines already stored. Write player_weekly_stats rows, keeping any salary an admin overrode. Record the run's fringe levels, k and top-lineup cost in the change log. Refuses once a game that week has kicked off.
+4.  **Game Day Live Scoring** (`score-games`, every 10 minutes; 1 call per run while a game is live, plus 1 when a game may have finished):
+    - Endpoint: /games/players (and /games to check for finished games)
+    - Logic: Does nothing unless an SEC-vs-SEC game has kicked off and isn't final, so Thursday, Friday and Saturday games are all covered. Store every SEC team's stat lines for the week, copy pool players' lines onto player_weekly_stats (the database calculates PPR points, including fumbles lost), mark games in progress or final, and recalculate every lineup's total_score so leaderboards update live.
+    - If a player scores in an SEC-vs-SEC game but isn't in the players table, log it once in the change log so an admin can add them.
+    - Note: Vercel's Hobby plan runs cron jobs only once a day. Scoring every 10 minutes needs a Vercel Pro plan or Supabase pg_cron.
+5.  **Monday Final Reconciliation** (`reconcile-week`, Monday; 2 calls):
+    - Logic: Re-fetch the most recent week's box scores to pick up stat corrections, mark every finished game final, and recalculate every lineup's total_score.
 
 ## 5. Step-by-Step Build Order
 
