@@ -15,7 +15,7 @@ export default function Home() {
           <span className="font-medium">configured</span>
         ) : (
           <span className="font-medium text-destructive">
-            not configured (copy .env.example to .env.local)
+            not configured (check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
           </span>
         )}
       </p>
