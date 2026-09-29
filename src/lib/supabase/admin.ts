@@ -9,7 +9,7 @@ import { requireSupabaseEnv } from "./env";
 // never import it into a Client Component.
 export function createAdminClient() {
   const { url } = requireSupabaseEnv();
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY?.trim();
   if (!secretKey) {
     throw new Error("SUPABASE_SECRET_KEY is not set (see .env.example).");
   }

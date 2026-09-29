@@ -13,7 +13,7 @@ Last updated: 2026-09-29, after Phase 2, the injury feed and the pre-Phase 3 set
 | 1. Foundation and database | Done |
 | 2. CFBD API and data pipelines | Done, run against the real Supabase project (2026 season loaded, Weeks 5 and 6 priced) |
 | Injury feed (added after Phase 2) | Done; table filled from Covers |
-| Pre-Phase 3 setup | Job schedules (`vercel.json`) in the repo; `main` branch, hosting, Google sign-in and email follow [SETUP.md](SETUP.md) |
+| Pre-Phase 3 setup | `main` branch and job schedules done; hosted on Vercel at <https://sec-fantasy-game-claude.vercel.app>; Google sign-in and email follow [SETUP.md](SETUP.md) |
 | 3. Authentication and navigation | Not started |
 | 4. Lineup builder | Not started |
 | 5. Leagues and leaderboards | Not started |
@@ -209,6 +209,8 @@ without code changes.
 Injury status is display only; pricing never reads it.
 
 ## Configuration
+
+Production: <https://sec-fantasy-game-claude.vercel.app> (Vercel, deploys `main`).
 
 | Variable | Where it's used |
 | --- | --- |
