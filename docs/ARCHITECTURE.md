@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-29, after Phase 2 and the injury feed.
+Last updated: 2026-09-29, after Phase 2, the injury feed and the pre-Phase 3 setup.
 
 ## Build status
 
@@ -13,11 +13,12 @@ Last updated: 2026-09-29, after Phase 2 and the injury feed.
 | 1. Foundation and database | Done |
 | 2. CFBD API and data pipelines | Done, run against the real Supabase project (2026 season loaded, Weeks 5 and 6 priced) |
 | Injury feed (added after Phase 2) | Done; table filled from Covers |
+| Pre-Phase 3 setup | Job schedules (`vercel.json`) in the repo; `main` branch, hosting, Google sign-in and email follow [SETUP.md](SETUP.md) |
 | 3. Authentication and navigation | Not started |
 | 4. Lineup builder | Not started |
 | 5. Leagues and leaderboards | Not started |
 | 6. Admin screen | Not started |
-| 7. Polish and deployment (cron schedules) | Not started |
+| 7. Polish and deployment (live scoring schedule) | Not started |
 
 ## System overview
 
@@ -138,17 +139,18 @@ lines and non-conference games, which aren't all in `players` or `games`.
 
 Each job is `/api/jobs/<job>` (GET for the scheduler, POST by hand) with
 `Authorization: Bearer <CRON_SECRET>`, or `runJob()` called directly with the
-admin client. Every automated change goes to `change_log` with
+admin client. Schedules live in `vercel.json` and run on the production
+deployment; Vercel sends the `CRON_SECRET` header itself. Every automated change goes to `change_log` with
 `changed_by = NULL`.
 
 | Job | Schedule | CFBD calls | Reads | Writes |
 | --- | --- | --- | --- | --- |
 | `preseason-setup` | Once per season | ~39 | CFBD games, rosters, recruits, box scores | games, players, player_game_stats, projections |
-| `roster-check` | Tuesday morning | 17 | CFBD games, rosters | games (kickoff times), players, change_log |
-| `generate-salaries` | Tuesday, after roster-check | 0 | players, projections, stat lines, settings | player_weekly_stats (salary, blended PPG, starter share), change_log |
-| `score-games` | Every 10 min on game days | 1–2 per run while live | CFBD box scores, finished games | player_game_stats, player_weekly_stats, games.status, lineup totals |
-| `reconcile-week` | Monday | 2 | CFBD box scores, finished games | as score-games, marks games final |
-| `injury-report` | Daily; acts Wed–Fri and within 24h of an SEC kickoff | 0 (1 Covers request) | Covers page, players | player_injuries, change_log |
+| `roster-check` | Tuesday 10:00 UTC | 17 | CFBD games, rosters | games (kickoff times), players, change_log |
+| `generate-salaries` | Tuesday 12:00 UTC, after roster-check | 0 | players, projections, stat lines, settings | player_weekly_stats (salary, blended PPG, starter share), change_log |
+| `score-games` | Every 10 min on game days (not scheduled yet: needs Vercel Pro or pg_cron) | 1–2 per run while live | CFBD box scores, finished games | player_game_stats, player_weekly_stats, games.status, lineup totals |
+| `reconcile-week` | Monday 12:00 UTC | 2 | CFBD box scores, finished games | as score-games, marks games final |
+| `injury-report` | Daily 13:00 UTC; acts Wed–Fri and within 24h of an SEC kickoff | 0 (1 Covers request) | Covers page, players | player_injuries, change_log |
 
 ### Weekly cycle
 
@@ -214,7 +216,7 @@ Injury status is display only; pricing never reads it.
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser and server clients (safe to expose) |
 | `SUPABASE_SECRET_KEY` | `admin.ts` only (jobs) |
 | `CFBD_API_KEY` | CFBD client |
-| `CRON_SECRET` | Job route authorization |
+| `CRON_SECRET` | Job route authorization; Vercel Cron sends it automatically |
 
 ## Decisions
 
@@ -227,6 +229,7 @@ Injury status is display only; pricing never reads it.
 | 2026-09-29 | Starter share scales last season and the projection | Backups were priced like starters |
 | 2026-09-29 | Injuries from Covers; display only | Only one of the three sources had current data |
 | 2026-09-29 | Injury writes guarded by a safety check | A broken page read must never wipe good data |
+| 2026-09-29 | Host on Vercel; schedule the daily-or-less jobs now, live scoring later | Keeps stats and prices current before launch on the free plan |
 
 ## Open items
 
@@ -236,8 +239,11 @@ Injury status is display only; pricing never reads it.
 - **Injury "healthy" status**: an admin can't yet mark a listed player as
   healthy for good (a removed row comes back while Covers still lists them).
 - **Covers terms of use**: review before relying on the page in production.
-- **Scheduling**: cron schedules aren't deployed yet (Phase 7). Scoring every
-  10 minutes needs Vercel Pro or Supabase pg_cron.
+- **Live scoring schedule**: `score-games` every 10 minutes needs Vercel Pro
+  or Supabase pg_cron (Phase 7). Until then Monday's `reconcile-week` brings
+  in final stats.
+- **Email**: Supabase's built-in email is rate limited; custom SMTP is needed
+  before launch (SETUP.md step 5).
 
 ## Keeping this document current
 

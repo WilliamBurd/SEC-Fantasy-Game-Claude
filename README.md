@@ -32,6 +32,8 @@ system is built is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `supabase/tests` | Database tests |
 | `docs/PRD.md` | Product requirements |
 | `docs/ARCHITECTURE.md` | How the system fits together |
+| `docs/SETUP.md` | Hosting, Google sign-in, email and admin setup |
+| `vercel.json` | Schedules for the data pipelines on Vercel |
 
 ## Local setup
 
@@ -43,6 +45,9 @@ system is built is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
    run each file in `supabase/migrations/` in order, oldest first. (Or, with
    the Supabase CLI linked to your project, `supabase db push`.)
 4. Start the app: `npm run dev`, then open http://localhost:3000.
+
+To host the app, set up Google sign-in and email, follow
+[docs/SETUP.md](docs/SETUP.md).
 
 ## Data pipelines
 
