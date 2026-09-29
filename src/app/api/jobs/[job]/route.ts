@@ -26,6 +26,7 @@ function parseIntParam(value: string | null): number | undefined | null {
 
 /**
  * Runs a data pipeline: /api/jobs/<job>?season=2026&week=7 (both optional).
+ * `force=1` runs the injury report outside its Wednesday-to-game-day window.
  * Requires `Authorization: Bearer <CRON_SECRET>`, which Vercel Cron sends
  * automatically. GET is for Vercel Cron; POST for running a job by hand.
  */
@@ -52,7 +53,7 @@ async function handle(request: NextRequest, ctx: RouteContext<"/api/jobs/[job]">
     const result = await runJob(
       { db: createAdminClient(), cfbd: CfbdClient.fromEnv(), now: new Date() },
       job,
-      { season, week },
+      { season, week, force: request.nextUrl.searchParams.get("force") === "1" },
     );
     return NextResponse.json({ job, result });
   } catch (error) {

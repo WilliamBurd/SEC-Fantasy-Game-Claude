@@ -23,6 +23,7 @@
 - **Contest starts in Week 3:** Weeks 1 and 2 have few or no SEC-vs-SEC games, so the contest starts in Week 3 (a setting). From then on, every week with an SEC-vs-SEC game runs.
 - **Pricing:** the placeholder tiers are replaced by value-over-fringe pricing (2.5). The formula is agreed in principle and will be tuned once real prices can be seen.
 - **Starter share:** after the first dry run with real data, backups and players who hadn't played this season were priced like starters from last season's stats alone. Last season and the projection are now scaled by starter share (2.5).
+- **Injury statuses:** read automatically from the Covers college football injury report and shown next to players (out, doubtful, questionable, probable). Display only: they don't affect prices. ESPN's college injury feed and CBS's college injury page were also checked, but ESPN's is stale and CBS's page has no data.
 
 ## 1. Product Overview
 
@@ -132,6 +133,8 @@ The Phase 2 migration, [`supabase/migrations/20260930000000_data_pipelines.sql`]
 
 The starter share migration, [`supabase/migrations/20261001000000_starter_share.sql`](../supabase/migrations/20261001000000_starter_share.sql), adds pass attempts and carries to `player_game_stats`, the starter share each salary was priced with to `player_weekly_stats`, and the starter share settings to `app_settings`.
 
+The injuries migration, [`supabase/migrations/20261002000000_player_injuries.sql`](../supabase/migrations/20261002000000_player_injuries.sql), adds `player_injuries`: one row per injured player with status, injury, note, source and date. Admins can override a row; the injury job then leaves it alone.
+
 ### 3.1. Lineup Validation (Database Trigger)
 
 A *validate_lineup()* trigger runs before every insert or update on *lineups*, so the rules hold even if the client is bypassed. It rejects the save unless:
@@ -179,6 +182,8 @@ Each job is an API route, `/api/jobs/<job>`, protected by the `CRON_SECRET` bear
     - Note: Vercel's Hobby plan runs cron jobs only once a day. Scoring every 10 minutes needs a Vercel Pro plan or Supabase pg_cron.
 5.  **Monday Final Reconciliation** (`reconcile-week`, Monday; 2 calls):
     - Logic: Re-fetch the most recent week's box scores to pick up stat corrections, mark every finished game final, and recalculate every lineup's total_score.
+6.  **Injury Report** (`injury-report`, Wednesday to Friday and before game days; no CFBD calls, 1 request to Covers):
+    - Logic: Read the Covers injury report, match its SEC QB/RB/WR/TE entries to players by team, first initial and last name (position breaks ties), and replace the stored statuses. Admin overrides are kept. Names that match no player are logged once in the change log. If the page looks wrong (too few teams, row counts that don't match the page, no SEC teams, or a sudden large drop), nothing is written and the skip is logged, so a bad read never wipes good data.
 
 ## 5. Step-by-Step Build Order
 

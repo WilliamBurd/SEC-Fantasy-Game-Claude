@@ -1,10 +1,11 @@
 import type { JobContext } from "./context";
 import { check, loadSettings } from "./db";
+import { injuryReport } from "./injuries";
 import { preseasonSetup, weeklyRosterCheck } from "./preseason";
 import { generateSalaries } from "./salaries";
 import { scoreWeek } from "./scoring";
 import { seasonFor } from "./season";
-import { latestStartedWeek, liveWeeks, nextUnstartedWeek, type ScheduledGame } from "./weeks";
+import { injuryReportDue, latestStartedWeek, liveWeeks, nextUnstartedWeek, type ScheduledGame } from "./weeks";
 
 export const JOB_NAMES = [
   "preseason-setup",
@@ -12,6 +13,7 @@ export const JOB_NAMES = [
   "generate-salaries",
   "score-games",
   "reconcile-week",
+  "injury-report",
 ] as const;
 export type JobName = (typeof JOB_NAMES)[number];
 
@@ -31,8 +33,15 @@ async function loadSchedule(ctx: JobContext, season: number): Promise<ScheduledG
  * - generate-salaries: the next week whose games haven't started
  * - score-games: every week with a game in progress
  * - reconcile-week: the most recent week that has started
+ *
+ * injury-report runs only Wednesday to Friday and before game days, so it
+ * can be scheduled daily; `force` runs it any day.
  */
-export async function runJob(ctx: JobContext, job: JobName, options: { season?: number; week?: number } = {}) {
+export async function runJob(
+  ctx: JobContext,
+  job: JobName,
+  options: { season?: number; week?: number; force?: boolean } = {},
+) {
   const season = options.season ?? seasonFor(ctx.now);
 
   switch (job) {
@@ -62,6 +71,13 @@ export async function runJob(ctx: JobContext, job: JobName, options: { season?: 
       const week = options.week ?? latestStartedWeek(await loadSchedule(ctx, season), ctx.now);
       if (week === null) return { status: "skipped", season, reason: "No week has started yet." };
       return scoreWeek(ctx, season, week, "reconcile");
+    }
+
+    case "injury-report": {
+      if (!options.force && !injuryReportDue(await loadSchedule(ctx, season), ctx.now)) {
+        return { status: "skipped", season, reason: "Injury reports run Wednesday to Friday and before game days." };
+      }
+      return { season, ...(await injuryReport(ctx, season)) };
     }
   }
 }

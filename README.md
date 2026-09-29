@@ -23,7 +23,8 @@ The full product requirements are in [docs/PRD.md](docs/PRD.md).
 | `src/lib/cfbd` | CollegeFootballData API client |
 | `src/lib/pricing` | Pricing engine: Blended PPG, value over fringe, salaries |
 | `src/lib/scoring` | Box score parsing |
-| `src/lib/pipelines` | Data pipelines: pre-season setup, roster check, salaries, scoring |
+| `src/lib/injuries` | Covers injury report parsing, name matching and safety check |
+| `src/lib/pipelines` | Data pipelines: pre-season setup, roster check, salaries, scoring, injuries |
 | `src/app/api/jobs/[job]` | API route that runs a pipeline |
 | `src/proxy.ts` | Keeps the signed-in session fresh on every request |
 | `supabase/migrations` | Database schema, lineup rules and Row Level Security |
@@ -56,9 +57,10 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3000/api/
 | `generate-salaries` | Tuesday morning, after the roster check | Prices the next week that hasn't started |
 | `score-games` | Every 10 minutes on game days | Live stats and lineup scores (does nothing when no game is live) |
 | `reconcile-week` | Monday | Final stats and scores for the week just played |
+| `injury-report` | Daily (acts Wednesday to Friday and before game days) | Injury statuses from Covers, for display only |
 
 Add `?season=2026&week=7` to pick a season or week; otherwise each job picks
-the natural one.
+the natural one. Add `?force=1` to run the injury report on any day.
 
 ## Commands
 
@@ -67,7 +69,7 @@ the natural one.
 | `npm run dev` | Runs the app locally |
 | `npm run build` | Builds for production |
 | `npm run lint` | Checks the code with ESLint |
-| `npm test` | Runs the unit tests (pricing, box scores, rosters) |
+| `npm test` | Runs the unit tests (pricing, box scores, rosters, injuries) |
 | `npm run test:db` | Runs the database tests against a local Postgres (set `PGHOST`, `PGPORT`, `PGUSER`) |
 
 The database tests create a throwaway database, load a small stand-in for

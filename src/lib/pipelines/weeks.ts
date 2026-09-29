@@ -22,3 +22,20 @@ export function latestStartedWeek(games: ScheduledGame[], now: Date): number | n
   const started = games.filter((g) => new Date(g.kickoff_at) <= now).map((g) => g.week);
   return started.length > 0 ? Math.max(...started) : null;
 }
+
+const INJURY_REPORT_DAYS = new Set(["Wed", "Thu", "Fri"]);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Injury report: Wednesday to Friday (US Eastern), when teams update their
+ * lists, plus any day an SEC-vs-SEC game kicks off within the next 24 hours
+ * (Saturday mornings, and the odd game on another day).
+ */
+export function injuryReportDue(games: ScheduledGame[], now: Date): boolean {
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "America/New_York" }).format(now);
+  if (INJURY_REPORT_DAYS.has(weekday)) return true;
+  return games.some((g) => {
+    const untilKickoff = new Date(g.kickoff_at).getTime() - now.getTime();
+    return untilKickoff > 0 && untilKickoff <= DAY_MS;
+  });
+}
