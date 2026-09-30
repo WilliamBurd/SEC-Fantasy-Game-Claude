@@ -1,6 +1,6 @@
 import "server-only";
 
-import { check, loadSettings, selectAll, type Db } from "@/lib/pipelines/db";
+import { check, loadPricedWeeks, loadSettings, selectAll, type Db } from "@/lib/pipelines/db";
 import { seasonFor } from "@/lib/pipelines/season";
 
 import { slotsFromRow, type InjuryStatus, type LineupSlots, type PoolPlayer, type Position } from "./rules";
@@ -36,20 +36,8 @@ export async function loadLineupPage(db: Db, userId: string, now: Date): Promise
   check(gamesResult.error, "load games");
   const games = gamesResult.data ?? [];
 
-  // Which weeks have prices: one tiny count per week of the season.
   const weeks = [...new Set(games.map((g) => g.week as number))].filter((w) => w >= seasonSettings.first_contest_week);
-  const counts = await Promise.all(
-    weeks.map(async (week) => {
-      const { count, error } = await db
-        .from("player_weekly_stats")
-        .select("player_id", { count: "exact", head: true })
-        .eq("season", season)
-        .eq("week", week);
-      check(error, "count priced players");
-      return [week, count ?? 0] as const;
-    }),
-  );
-  const priced = new Set(counts.filter(([, count]) => count > 0).map(([week]) => week));
+  const priced = await loadPricedWeeks(db, season, weeks);
   const status = pickLineupWeek(games, priced, now, seasonSettings.first_contest_week);
   if (status.kind === "none") {
     return { season, status, players: [], saved: slotsFromRow(null), hasLineup: false, totalScore: 0 };

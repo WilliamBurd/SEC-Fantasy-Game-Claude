@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-30, after Phase 4 (lineup builder).
+Last updated: 2026-09-30, after Phase 5 (leagues and leaderboards).
 
 ## Build status
 
@@ -16,7 +16,7 @@ Last updated: 2026-09-30, after Phase 4 (lineup builder).
 | Pre-Phase 3 setup | Done: `main` branch, job schedules, hosted on Vercel at <https://sec-fantasy-game.vercel.app> |
 | 3. Authentication and navigation | Done: email/password sign-in, password reset, username onboarding, app shell. The Google button is built and works once Google is set up ([SETUP.md](SETUP.md) step 4) |
 | 4. Lineup builder | Done: `/lineup` shows the week's pool, per-player locks, budget and client checks that mirror the trigger; saves through a Server Action |
-| 5. Leagues and leaderboards | Not started |
+| 5. Leagues and leaderboards | Done: global leaderboard, create/join/leave/delete leagues, league standings, global rank on the profile |
 | 6. Admin screen | Not started |
 | 7. Polish and deployment (live scoring schedule) | Not started |
 
@@ -138,6 +138,31 @@ flowchart TD
 - **Phones:** one column, with the budget and Save button in a bar along the
   bottom; tapping an empty slot jumps to the list filtered to that position.
 
+## Leagues and leaderboards
+
+Both boards come from one database function, `leaderboard(season, week,
+league_id)`, which returns each user's week score, season total and both
+ranks (ties share a rank). It runs with the caller's rights: scores come from
+`public_lineups`, which everyone may read, and league members are visible
+only to other members, so a non-member gets an empty board.
+
+- **Global board** (`/leaderboard`): everyone with a lineup this season,
+  top 100, plus the user's own row if they're further down. Season or week
+  view, and a picker for any week that has been played.
+- **Weeks shown**: priced weeks with a game that has kicked off. Before the
+  first one, the page says when it starts.
+- **Leagues** (`/leagues`): create (the database picks the 6-character
+  code), join by code, or open a share link (`/leagues?join=CODE`) that
+  fills in the code. A league page shows the invite code, standings for
+  every member (0 for weeks without a lineup), and rename/delete for the
+  creator or leave for everyone else. The creator can't leave: a trigger
+  stops it, since nobody else could manage the league.
+- **Refreshing**: while a game of the shown week is in progress (kicked off
+  in the last 5 hours, not final), the page reloads its data every minute.
+  Scores only change when a scoring job runs; until `score-games` is
+  scheduled (Phase 7) that's Monday's `reconcile-week`.
+- **Profile**: global rank is the user's season rank.
+
 ## Code layout
 
 | Path | Role |
@@ -149,6 +174,8 @@ flowchart TD
 | `src/app/onboarding` | Username picker every new user goes through once |
 | `src/components/shell` | Header, desktop navigation, mobile menu, user dropdown |
 | `src/components/lineup` | Lineup builder: slots, budget bar, player list |
+| `src/components/leaderboard`, `src/components/leagues` | Standings table, week/season switch, auto-refresh, league forms |
+| `src/lib/leaderboard`, `src/lib/leagues` | Board weeks and live check, form checks (pure, unit tested) and their data loaders |
 | `src/lib/lineup` | Lineup rules, week picker, pool filters, time formats (pure, unit tested) and the page's data loader |
 | `src/lib/auth` | Who's signed in (`dal.ts`), which pages need sign-in (`routes.ts`), form checks (`validation.ts`) |
 | `src/proxy.ts`, `src/lib/supabase/proxy.ts` | Refresh the user's session cookie on every request, and send signed-out visitors on protected pages to sign in |
@@ -190,6 +217,7 @@ applied ones are never edited.
 | `20261001000000_starter_share` | Pass attempts and carries on stat lines, `starter_share` on weekly rows, starter share settings |
 | `20261002000000_player_injuries` | `player_injuries` (status, injury, note, source, date, admin override) |
 | `20261003000000_pricing_fringe` | `fringe_rank_offset` pricing setting (0 = last starter, 1 = first backup) |
+| `20261004000000_leaderboards` | `leaderboard()` ranking function; trigger stopping a league's creator from leaving it |
 
 ```mermaid
 erDiagram
@@ -328,6 +356,8 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 | 2026-09-30 | Lineup draft kept in React state (`useReducer`), not Zustand | One component owns it; no extra dependency |
 | 2026-09-30 | Builder shows the earliest priced week with a game to come; a finished week stays read-only until the next is priced | Users always see the lineup that matters now |
 | 2026-09-30 | Lineup save is update-then-insert, not upsert | Users may update only slot columns; the trigger's messages reach the user unchanged |
+| 2026-09-30 | Leaderboards ranked in the database by one function, with the caller's rights | One definition for both boards; RLS keeps league boards private |
+| 2026-09-30 | A league's creator can't leave it, only delete it | Otherwise nobody could rename or delete the league |
 
 ## Open items
 
@@ -347,8 +377,9 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
   in final stats.
 - **Email**: Supabase's built-in email is rate limited; custom SMTP is needed
   before launch (SETUP.md step 5).
-- **Global rank on the profile page** shows "Soon" until the leaderboard
-  (Phase 5).
+- **Deleting an account that created a league** fails until its leagues are
+  deleted (the league keeps a reference to its creator). Fine for now; an
+  account deletion feature would need to handle it.
 
 ## Keeping this document current
 

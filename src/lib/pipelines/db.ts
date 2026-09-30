@@ -42,6 +42,22 @@ export async function upsertAll(db: Db, table: string, rows: object[], onConflic
   }
 }
 
+/** Which of these weeks have prices (a player_weekly_stats row): one tiny count per week. */
+export async function loadPricedWeeks(db: Db, season: number, weeks: number[]): Promise<Set<number>> {
+  const counts = await Promise.all(
+    weeks.map(async (week) => {
+      const { count, error } = await db
+        .from("player_weekly_stats")
+        .select("player_id", { count: "exact", head: true })
+        .eq("season", season)
+        .eq("week", week);
+      check(error, "count priced players");
+      return [week, count ?? 0] as const;
+    }),
+  );
+  return new Set(counts.filter(([, count]) => count > 0).map(([week]) => week));
+}
+
 export async function loadSettings(db: Db): Promise<{ pricing: PricingSettings; season: SeasonSettings }> {
   const { data, error } = await db.from("app_settings").select("key, value");
   check(error, "load settings");
