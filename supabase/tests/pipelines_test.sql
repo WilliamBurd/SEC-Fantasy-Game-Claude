@@ -65,6 +65,9 @@ SELECT tests.assert_eq(
 SELECT tests.assert_eq(
   (SELECT (value -> 'fringe_depth' ->> 'WR')::INT FROM public.app_settings WHERE key = 'pricing'), 3,
   'WR fringe depth default');
+SELECT tests.assert_eq(
+  (SELECT (value ->> 'fringe_rank_offset')::INT FROM public.app_settings WHERE key = 'pricing'), 0,
+  'fringe rank offset default');
 
 SET ROLE anon;
 SELECT tests.sign_in(NULL);

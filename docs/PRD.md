@@ -23,6 +23,7 @@
 - **Contest starts in Week 3:** Weeks 1 and 2 have few or no SEC-vs-SEC games, so the contest starts in Week 3 (a setting). From then on, every week with an SEC-vs-SEC game runs.
 - **Pricing:** the placeholder tiers are replaced by value-over-fringe pricing (2.5). The formula is agreed in principle and will be tuned once real prices can be seen.
 - **Starter share:** after the first dry run with real data, backups and players who hadn't played this season were priced like starters from last season's stats alone. Last season and the projection are now scaled by starter share (2.5).
+- **Pricing tuning (after the first real prices):** the fringe level is now the last starter at each position rather than the first backup, since every user can pick any starter; this brought starting QBs back down after the starter share change. Fringe levels and k are measured over all 16 SEC teams rather than the week's pool, so a player's price no longer moves just because different teams are playing that week (2.5).
 - **Injury statuses:** read automatically from the Covers college football injury report and shown next to players (out, doubtful, questionable, probable). Display only: they don't affect prices. ESPN's college injury feed and CBS's college injury page were also checked, but ESPN's is stale and CBS's page has no data.
 
 ## 1. Product Overview
@@ -83,13 +84,13 @@ A weekly redraft college football fantasy app focused exclusively on the SEC. Us
 
 Prices follow a straight line from each position's fringe level, so any lineup that spends the full 100 credits has about the same expected points whether it's built from several stars plus fringe players or one or two stars plus lower-level starters. Each Tuesday:
 
-1. **Fringe level per position:** the Blended PPG of the first player past the starters, counted over the T teams in the week's pool: QB rank T + 1, RB rank 2T + 1, WR rank 3T + 1, TE rank T + 1.
+1. **Fringe level per position:** the Blended PPG of the last starter, counted over every active player on all T = 16 SEC teams (not just the week's pool): QB rank T, RB rank 2T, WR rank 3T, TE rank T. Every user can pick any starter, so the worst starter is what the minimum price buys. (A setting can move this to the first backup, rank T + 1 and so on.)
 2. **Value:** Blended PPG minus the position's fringe level, never below 0.
-3. **Salary:** 5 + value × k, where k is set so the most expensive possible lineup (best QB, 2 RB, 2 WR, TE and FLEX) costs 145 credits. One k for every position keeps the positions balanced.
+3. **Salary:** 5 + value × k, where k is set so the most expensive possible lineup from all SEC players (best QB, 2 RB, 2 WR, TE and FLEX) costs 145 credits. One k for every position keeps the positions balanced. Because the fringe levels and k come from all SEC teams, a week whose pool is missing some stars has a most expensive lineup below 145.
 4. **Weekly limit:** after a player's first priced week, a salary moves at most 4 credits from the previous week.
 5. Salaries are rounded and kept between 5 and 30.
 
-The fringe depths, the 145 target, the weekly limit, the salary range, the blending weights and the starter share settings are all stored in the app_settings table, so they can be tuned from the admin screen.
+The fringe depths and which player sets the fringe, the 145 target, the weekly limit, the salary range, the blending weights and the starter share settings are all stored in the app_settings table, so they can be tuned from the admin screen.
 
 Salaries for a week are set on Tuesday morning and don't change for that week, unless an admin overrides one before the week's first kickoff.
 

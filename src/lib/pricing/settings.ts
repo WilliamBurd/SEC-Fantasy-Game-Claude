@@ -11,8 +11,14 @@ export type PricingSettings = {
   projection_weight: number;
   /** The "+3" in the current-season weight G / (G + 3). */
   current_season_games_offset: number;
-  /** Starters per team at each position; the fringe player is ranked depth × teams + 1. */
+  /** Starters per team at each position. */
   fringe_depth: Record<Position, number>;
+  /**
+   * Which player sets the fringe level: the one ranked depth × teams +
+   * offset across all SEC teams. 0 = the last starter (every user can pick
+   * any starter, so that's what the minimum price buys); 1 = the first backup.
+   */
+  fringe_rank_offset: number;
   min_salary: number;
   max_salary: number;
   max_weekly_change: number;
@@ -42,6 +48,7 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   projection_weight: 0.4,
   current_season_games_offset: 3,
   fringe_depth: { QB: 1, RB: 2, WR: 3, TE: 1 },
+  fringe_rank_offset: 0,
   min_salary: 5,
   max_salary: 30,
   max_weekly_change: 4,

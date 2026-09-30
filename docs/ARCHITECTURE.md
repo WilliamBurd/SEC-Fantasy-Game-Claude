@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-30, after Phase 3 (sign-in, onboarding and the app shell).
+Last updated: 2026-09-30, after Phase 3 and the pricing tuning.
 
 ## Build status
 
@@ -146,6 +146,7 @@ applied ones are never edited.
 | `20260930000000_data_pipelines` | `app_settings` (tunable pricing and season settings), `player_game_stats` (every game's stat lines), `ppr_points()` |
 | `20261001000000_starter_share` | Pass attempts and carries on stat lines, `starter_share` on weekly rows, starter share settings |
 | `20261002000000_player_injuries` | `player_injuries` (status, injury, note, source, date, admin override) |
+| `20261003000000_pricing_fringe` | `fringe_rank_offset` pricing setting (0 = last starter, 1 = first backup) |
 
 ```mermaid
 erDiagram
@@ -226,9 +227,12 @@ sequenceDiagram
    starter's share).
 2. **Blended PPG**: this season's weight is G / (G + 3); the rest is split
    60/40 between last season and the projection, both scaled by starter share.
-3. **Salary**: 5 + (Blended PPG − position fringe level) × k, where k makes
-   the most expensive possible lineup cost 145. Rounded, kept between 5 and
-   30, and moved at most 4 from the previous week.
+3. **Salary**: 5 + (Blended PPG − position fringe level) × k. The fringe
+   level is the last starter at each position (QB rank 16, RB 32, WR 48,
+   TE 16), and k makes the most expensive possible lineup cost 145. Both are
+   measured over every active SEC player, not just the week's pool, so a
+   player's price only moves when their own numbers do. Rounded, kept
+   between 5 and 30, and moved at most 4 from the previous week.
 4. Admin overrides are kept, and the job refuses once any of the week's
    games has kicked off.
 
@@ -277,12 +281,15 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 | 2026-09-29 | Host on Vercel; schedule the daily-or-less jobs now, live scoring later | Keeps stats and prices current before launch on the free plan |
 | 2026-09-30 | Supabase Auth with Server Actions; username picked in onboarding, not at sign-up | One flow for email and Google users; Google accounts have no username to start with |
 | 2026-09-30 | Access checked in the proxy (fast, cookie only) and again on each page (verified) | The proxy runs on every request and can't be the only guard |
+| 2026-09-30 | Pricing fringe = last starter, measured over all SEC teams | Starting QBs had become too pricey; prices moved when different teams were in the pool even with no new games |
 
 ## Open items
 
-- **Pricing tuning**: starting QBs rose 4–6 credits after the starter share
-  change; 418 of 507 Week 6 players sit at the 5-credit floor; a larger pool
-  can push prices down by the full weekly limit when stats haven't changed.
+- **Pricing**: tuned on 2026-09-30 (see Decisions). Worth another look once
+  a few weeks of real lineups show whether QBs are now too cheap. About 420
+  of ~500 pool players cost the 5-credit minimum; nearly all are backups who
+  haven't played, so the lineup builder should sort and filter by price and
+  points.
 - **Injury "healthy" status**: an admin can't yet mark a listed player as
   healthy for good (a removed row comes back while Covers still lists them).
 - **Covers terms of use**: review before relying on the page in production.
