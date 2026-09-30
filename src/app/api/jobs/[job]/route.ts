@@ -1,22 +1,12 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse, type NextRequest } from "next/server";
 
 import { CfbdClient } from "@/lib/cfbd/client";
+import { cronSecret, isJobAuthorized } from "@/lib/pipelines/job-auth";
 import { isJobName, JOB_NAMES, runJob } from "@/lib/pipelines/jobs";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // The pre-season setup makes about 39 CFBD calls and can take a few minutes.
 export const maxDuration = 300;
-
-function authorized(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  const header = request.headers.get("authorization") ?? "";
-  if (!secret) return false;
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const actual = Buffer.from(header);
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
 
 function parseIntParam(value: string | null): number | undefined | null {
   if (value === null || value === "") return undefined;
@@ -31,11 +21,18 @@ function parseIntParam(value: string | null): number | undefined | null {
  * automatically. GET is for Vercel Cron; POST for running a job by hand.
  */
 async function handle(request: NextRequest, ctx: RouteContext<"/api/jobs/[job]">) {
-  if (!process.env.CRON_SECRET) {
+  const secret = cronSecret();
+  if (!secret) {
     return NextResponse.json({ error: "CRON_SECRET is not set." }, { status: 500 });
   }
-  if (!authorized(request)) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  const header = request.headers.get("authorization");
+  if (!isJobAuthorized(header, secret)) {
+    // Lengths only (never the values), to tell "no header" from "wrong secret" in the logs.
+    console.warn(`Job request refused: Authorization header ${header ? `${header.length} characters` : "missing"}; expected ${secret.length + 7}.`);
+    return NextResponse.json(
+      { error: header ? "Unauthorized: the secret doesn't match CRON_SECRET." : "Unauthorized: no Authorization header." },
+      { status: 401 },
+    );
   }
 
   const { job } = await ctx.params;

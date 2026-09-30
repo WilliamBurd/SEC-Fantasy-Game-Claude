@@ -14,6 +14,7 @@ import {
   parseSalary,
 } from "@/lib/admin/forms";
 import { getProfile, getUser } from "@/lib/auth/dal";
+import { cronSecret } from "@/lib/pipelines/job-auth";
 import { isJobName } from "@/lib/pipelines/jobs";
 import { seasonFor } from "@/lib/pipelines/season";
 import { createClient } from "@/lib/supabase/server";
@@ -228,7 +229,7 @@ export async function runJobNow(_state: JobRunState, formData: FormData): Promis
   if (!isJobName(job)) return { error: "Unknown job." };
   const week = parseJobWeek(formData.get("week"));
   if (!week.ok) return { error: week.error };
-  const secret = process.env.CRON_SECRET;
+  const secret = cronSecret();
   if (!secret) return { error: "CRON_SECRET isn't set on the server, so jobs can't be run." };
 
   const h = await headers();

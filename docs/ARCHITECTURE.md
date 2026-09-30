@@ -339,6 +339,9 @@ Each job is `/api/jobs/<job>` (GET for the scheduler, POST by hand) with
 `Authorization: Bearer <CRON_SECRET>`, or `runJob()` called directly with the
 admin client. The daily-or-less schedules live in `vercel.json` and run on
 the production deployment; Vercel sends the `CRON_SECRET` header itself.
+The secret check ignores spaces or line breaks around the secret (a common
+copy-and-paste slip), and a refusal says whether the header was missing or
+the secret didn't match.
 Live scoring runs every 10 minutes, which Vercel's free plan doesn't allow,
 so Supabase schedules it: pg_cron has pg_net POST to the job route, with the
 site address and `CRON_SECRET` kept in Supabase Vault (set up once from
