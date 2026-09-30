@@ -37,9 +37,23 @@ export type PlayerFormValues = {
 export function PlayerForm({ teams, player }: { teams: string[]; player?: PlayerFormValues }) {
   const isNew = !player?.id;
   const [state, action, pending] = useActionState(isNew ? addPlayer : updatePlayer, undefined);
-  const v = player ?? { firstName: "", lastName: "", team: "", position: "", classYear: null, active: true };
+  const saved = player ?? { firstName: "", lastName: "", team: "", position: "", classYear: null, active: true };
+  // After an error, show what was typed rather than the saved values.
+  const typed = state?.error ? state.values : undefined;
+  const v = typed
+    ? {
+        firstName: typed.firstName ?? "",
+        lastName: typed.lastName ?? "",
+        team: typed.team ?? "",
+        position: typed.position ?? "",
+        classYear: typed.classYear ?? "",
+        active: typed.active === "on",
+      }
+    : { ...saved, classYear: saved.classYear ?? "" };
   return (
-    <form action={action} className="flex flex-col gap-4">
+    // A new key after each error rebuilds the form from what was typed (dropdowns
+    // otherwise go back to their first option when React resets the form).
+    <form key={state?.at ?? "form"} action={action} className="flex flex-col gap-4">
       {!isNew && <input type="hidden" name="playerId" value={player!.id} />}
       <FormMessage error={state?.error} message={state?.message} />
       <div className="grid gap-3 sm:grid-cols-2">
@@ -74,20 +88,20 @@ export function PlayerForm({ teams, player }: { teams: string[]; player?: Player
           </select>
         </Field>
         <Field label="Class year (optional)" htmlFor="classYear" hint="1 = freshman">
-          <Input id="classYear" name="classYear" inputMode="numeric" pattern="[1-6]?" defaultValue={v.classYear ?? ""} />
+          <Input id="classYear" name="classYear" inputMode="numeric" pattern="[1-6]?" defaultValue={v.classYear} />
         </Field>
         {isNew && (
           <Field label="CFBD player ID (if known)" htmlFor="cfbdId" hint="Blank: a temporary ID until CFBD lists them">
-            <Input id="cfbdId" name="cfbdId" inputMode="numeric" pattern="[0-9]*" />
+            <Input id="cfbdId" name="cfbdId" inputMode="numeric" pattern="[0-9]*" defaultValue={typed?.cfbdId} />
           </Field>
         )}
         {isNew && (
           <>
             <Field label="Projected PPG" htmlFor="projectedPpg" hint="Used for pricing until they play">
-              <Input id="projectedPpg" name="projectedPpg" required inputMode="decimal" placeholder="e.g. 4.5" />
+              <Input id="projectedPpg" name="projectedPpg" required inputMode="decimal" placeholder="e.g. 4.5" defaultValue={typed?.projectedPpg} />
             </Field>
             <Field label="Last season's PPG (optional)" htmlFor="priorSeasonPpg">
-              <Input id="priorSeasonPpg" name="priorSeasonPpg" inputMode="decimal" />
+              <Input id="priorSeasonPpg" name="priorSeasonPpg" inputMode="decimal" defaultValue={typed?.priorSeasonPpg} />
             </Field>
           </>
         )}
@@ -123,15 +137,16 @@ export function ProjectionForm({
   priorSeasonPpg: number | null;
 }) {
   const [state, action, pending] = useActionState(saveProjection, undefined);
+  const typed = state?.error ? state.values : undefined;
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="playerId" value={playerId} />
       <div className="grid grid-cols-2 gap-3">
         <Field label="Projected PPG" htmlFor="projectedPpg">
-          <Input id="projectedPpg" name="projectedPpg" required inputMode="decimal" defaultValue={projectedPpg ?? ""} />
+          <Input id="projectedPpg" name="projectedPpg" required inputMode="decimal" defaultValue={typed?.projectedPpg ?? projectedPpg ?? ""} />
         </Field>
         <Field label="Last season's PPG" htmlFor="priorSeasonPpg" hint="Blank if none">
-          <Input id="priorSeasonPpg" name="priorSeasonPpg" inputMode="decimal" defaultValue={priorSeasonPpg ?? ""} />
+          <Input id="priorSeasonPpg" name="priorSeasonPpg" inputMode="decimal" defaultValue={typed?.priorSeasonPpg ?? priorSeasonPpg ?? ""} />
         </Field>
       </div>
       <FormMessage error={state?.error} message={state?.message} />
@@ -161,7 +176,7 @@ export function SalaryForm({ playerId, week, salary, overridden }: { playerId: n
             min={SALARY_MIN}
             max={SALARY_MAX}
             type="number"
-            defaultValue={salary ?? ""}
+            defaultValue={(state?.error ? state.values?.salary : undefined) ?? salary ?? ""}
             className="h-9 w-20"
           />
           <Button type="submit" size="sm" disabled={pending}>
@@ -190,7 +205,14 @@ export function MergeForm({ playerId, suggested }: { playerId: number; suggested
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="playerId" value={playerId} />
       <Field label="Their CFBD player ID" htmlFor="mergeId">
-        <Input id="mergeId" name="cfbdId" inputMode="numeric" required defaultValue={suggested ?? ""} className="max-w-48" />
+        <Input
+          id="mergeId"
+          name="cfbdId"
+          inputMode="numeric"
+          required
+          defaultValue={(state?.error ? state.values?.cfbdId : undefined) ?? suggested ?? ""}
+          className="max-w-48"
+        />
       </Field>
       <FormMessage error={state?.error} />
       {confirming ? (

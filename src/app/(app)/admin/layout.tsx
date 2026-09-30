@@ -8,10 +8,10 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (
     <>
       <PageHeader eyebrow="Admin" title="Control room" />
-      <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-5">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5">
         <AdminTabs />
         <div className="mt-5">{children}</div>
-      </div>
+      </main>
     </>
   );
 }

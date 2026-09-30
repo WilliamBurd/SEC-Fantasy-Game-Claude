@@ -24,7 +24,8 @@ import { createClient } from "@/lib/supabase/server";
  * log every change and enforce the rules (20261005000000_admin_screen.sql).
  */
 
-export type AdminFormState = { error?: string; message?: string } | undefined;
+/** `values` echoes what was typed, so a form can show it again after an error (React resets forms after an action). */
+export type AdminFormState = { error?: string; message?: string; values?: Record<string, string>; at?: number } | undefined;
 export type JobRunState = { error?: string; result?: string; ranAt?: string } | undefined;
 
 const RULE_BROKEN = "P0001";
@@ -39,10 +40,15 @@ async function adminClient() {
 
 const NOT_ADMIN: AdminFormState = { error: "Only admins can do that. Sign in again if you are one." };
 
-function failure(error: { code?: string; message: string }, fallback: string): AdminFormState {
-  if (error.code === RULE_BROKEN) return { error: error.message };
+/** What was typed, plus a stamp so the form can rebuild itself with it (see PlayerForm). */
+function typed(formData: FormData): Record<string, string> {
+  return Object.fromEntries([...formData.entries()].filter((e): e is [string, string] => typeof e[1] === "string"));
+}
+
+function failure(error: { code?: string; message: string }, fallback: string, values?: Record<string, string>): AdminFormState {
+  if (error.code === RULE_BROKEN) return { error: error.message, values, at: Date.now() };
   console.error("admin action:", error);
-  return { error: fallback };
+  return { error: fallback, values, at: Date.now() };
 }
 
 function playerPaths(id: number) {
@@ -54,10 +60,11 @@ export async function addPlayer(_state: AdminFormState, formData: FormData): Pro
   const admin = await adminClient();
   if (!admin) return NOT_ADMIN;
   const teams = await loadTeams(admin.supabase);
+  const values = typed(formData);
   const parsed = parsePlayerForm((name) => formData.get(name), teams, true);
-  if (!parsed.ok) return { error: parsed.error };
+  if (!parsed.ok) return { error: parsed.error, values, at: Date.now() };
   const projection = parseProjectionForm((name) => formData.get(name));
-  if (!projection.ok) return { error: projection.error };
+  if (!projection.ok) return { error: projection.error, values, at: Date.now() };
 
   const p = parsed.value;
   const { data, error } = await admin.supabase
@@ -73,8 +80,10 @@ export async function addPlayer(_state: AdminFormState, formData: FormData): Pro
     })
     .select("id")
     .single();
-  if (error?.code === ALREADY_EXISTS) return { error: `There's already a player with CFBD ID ${p.cfbdId}. Search for them instead.` };
-  if (error || !data) return failure(error ?? { message: "no row" }, "Couldn't add the player. Please try again.");
+  if (error?.code === ALREADY_EXISTS) {
+    return { error: `There's already a player with CFBD ID ${p.cfbdId}. Search for them instead.`, values, at: Date.now() };
+  }
+  if (error || !data) return failure(error ?? { message: "no row" }, "Couldn't add the player. Please try again.", values);
 
   const { error: projectionError } = await admin.supabase.from("player_season_projections").insert({
     player_id: data.id,
@@ -94,8 +103,9 @@ export async function updatePlayer(_state: AdminFormState, formData: FormData): 
   const id = parsePlayerId(formData.get("playerId"));
   if (id === null) return { error: "That player couldn't be found." };
   const teams = await loadTeams(admin.supabase);
+  const values = typed(formData);
   const parsed = parsePlayerForm((name) => formData.get(name), teams, false);
-  if (!parsed.ok) return { error: parsed.error };
+  if (!parsed.ok) return { error: parsed.error, values, at: Date.now() };
 
   const p = parsed.value;
   const { data, error } = await admin.supabase
@@ -103,7 +113,7 @@ export async function updatePlayer(_state: AdminFormState, formData: FormData): 
     .update({ first_name: p.firstName, last_name: p.lastName, team: p.team, position: p.position, class_year: p.classYear, active: p.active })
     .eq("id", id)
     .select("id");
-  if (error) return failure(error, "Couldn't save the player. Please try again.");
+  if (error) return failure(error, "Couldn't save the player. Please try again.", values);
   if (!data?.length) return { error: "That player couldn't be found." };
   playerPaths(id);
   return { message: "Player saved." };
@@ -114,8 +124,9 @@ export async function saveProjection(_state: AdminFormState, formData: FormData)
   if (!admin) return NOT_ADMIN;
   const id = parsePlayerId(formData.get("playerId"));
   if (id === null) return { error: "That player couldn't be found." };
+  const values = typed(formData);
   const parsed = parseProjectionForm((name) => formData.get(name));
-  if (!parsed.ok) return { error: parsed.error };
+  if (!parsed.ok) return { error: parsed.error, values, at: Date.now() };
 
   const { error } = await admin.supabase.from("player_season_projections").upsert(
     {
@@ -126,7 +137,7 @@ export async function saveProjection(_state: AdminFormState, formData: FormData)
     },
     { onConflict: "player_id,season" },
   );
-  if (error) return failure(error, "Couldn't save the projection. Please try again.");
+  if (error) return failure(error, "Couldn't save the projection. Please try again.", values);
   playerPaths(id);
   return { message: "Projection saved. It's used from the next pricing run." };
 }
@@ -138,7 +149,7 @@ export async function setSalary(_state: AdminFormState, formData: FormData): Pro
   const week = Number(formData.get("week"));
   if (id === null || !Number.isInteger(week)) return { error: "That week couldn't be found." };
   const salary = parseSalary(formData.get("salary"));
-  if (!salary.ok) return { error: salary.error };
+  if (!salary.ok) return { error: salary.error, values: typed(formData), at: Date.now() };
   const season = seasonFor(new Date());
   const db = admin.supabase;
 
@@ -196,10 +207,10 @@ export async function mergePlayer(_state: AdminFormState, formData: FormData): P
   const id = parsePlayerId(formData.get("playerId"));
   if (id === null || id >= 0) return { error: "Only hand-added players with a temporary ID can be merged." };
   const cfbd = parseCfbdId(formData.get("cfbdId"));
-  if (!cfbd.ok) return { error: cfbd.error };
+  if (!cfbd.ok) return { error: cfbd.error, values: typed(formData), at: Date.now() };
 
   const { error } = await admin.supabase.rpc("merge_admin_player", { p_temporary_id: id, p_cfbd_id: cfbd.value });
-  if (error) return failure(error, "Couldn't merge the players. Please try again.");
+  if (error) return failure(error, "Couldn't merge the players. Please try again.", typed(formData));
   playerPaths(id);
   revalidatePath(`/admin/players/${cfbd.value}`);
   redirect(`/admin/players/${cfbd.value}?merged=1`);
