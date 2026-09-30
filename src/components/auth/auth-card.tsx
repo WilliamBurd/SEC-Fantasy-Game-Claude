@@ -16,9 +16,9 @@ export function AuthCard({
 }) {
   return (
     <main className="flex flex-1 items-start justify-center px-4 py-10 sm:items-center">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm border-t-2 border-t-primary">
         <CardHeader>
-          <CardTitle className="text-xl">{title}</CardTitle>
+          <CardTitle className="font-display text-3xl font-bold">{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">{children}</CardContent>

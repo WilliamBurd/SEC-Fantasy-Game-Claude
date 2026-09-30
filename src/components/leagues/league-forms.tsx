@@ -83,7 +83,7 @@ export function InviteShare({ code, leagueName }: { code: string; leagueName: st
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="rounded-md border bg-muted px-3 py-1.5 font-mono text-lg font-semibold tracking-widest">{code}</span>
+      <span className="rounded-lg border border-primary bg-card px-3 py-1 font-display text-2xl font-bold tracking-[0.2em] text-primary">{code}</span>
       <Button type="button" variant="outline" size="sm" onClick={() => copy(code, "code")}>
         {copied === "code" ? <Check /> : <Copy />} {copied === "code" ? "Copied" : "Copy code"}
       </Button>

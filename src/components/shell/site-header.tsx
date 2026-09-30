@@ -13,11 +13,11 @@ export async function SiteHeader() {
   const profile = user ? await getProfile() : null;
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-40 bg-header">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-4">
         <MobileNav signedIn={Boolean(user)} isAdmin={Boolean(profile?.is_admin)} />
-        <Link href="/" className="mr-4 flex items-center gap-2 font-semibold tracking-tight">
-          <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-bold text-primary-foreground">100</span>
+        <Link href="/" className="mr-4 flex items-center gap-2 font-display text-xl font-bold tracking-wide">
+          <span className="rounded-[5px] bg-primary px-1.5 text-base leading-6 font-extrabold text-primary-foreground">100</span>
           <span>SEC Gridiron</span>
         </Link>
         <MainNav />

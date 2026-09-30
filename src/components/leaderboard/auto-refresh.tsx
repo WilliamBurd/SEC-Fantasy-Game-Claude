@@ -18,9 +18,9 @@ export function AutoRefresh({ live }: { live: boolean }) {
 
   if (!live) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-      <span className="size-2 animate-pulse rounded-full bg-emerald-500" aria-hidden />
-      Games in progress: this page refreshes every minute
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">
+      <span className="size-[7px] animate-pulse rounded-full bg-primary" aria-hidden />
+      Live · refreshes every minute
     </span>
   );
 }
