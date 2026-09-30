@@ -149,7 +149,7 @@ export function LineupBuilder(props: Props) {
   const showPoints = readOnly || players.some((p) => isLocked(p, now));
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-40 lg:pb-10">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-44 sm:pb-32">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Week {week} lineup</h1>
         {showPoints && hasLineup && (
@@ -174,7 +174,7 @@ export function LineupBuilder(props: Props) {
       )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
-        <section ref={lineupRef} aria-labelledby="lineup-heading" className="scroll-mt-20 lg:sticky lg:top-20">
+        <section ref={lineupRef} aria-labelledby="lineup-heading" className="scroll-mt-20 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto lg:pb-2">
           <h2 id="lineup-heading" className="sr-only">
             Your players
           </h2>
@@ -209,17 +209,19 @@ export function LineupBuilder(props: Props) {
             </ul>
           )}
 
-          {/* Budget and save: a bar along the bottom on phones, part of this column on wide screens. */}
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:static lg:mt-4 lg:rounded-xl lg:border lg:p-4">
-            <div className="mx-auto flex max-w-5xl flex-col gap-2">
-              <Budget salary={salary} remaining={remaining} filled={filledCount(draft)} />
-              {message && (
-                <p role={message.error ? "alert" : "status"} className={cn("text-sm", message.error ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")}>
-                  {message.text}
-                </p>
-              )}
+          {/* Budget and save: always on screen, in a bar along the bottom. */}
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgb(0_0_0/0.06)] backdrop-blur">
+            <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex flex-col gap-1 sm:flex-1">
+                <Budget salary={salary} remaining={remaining} filled={filledCount(draft)} />
+                {message && (
+                  <p role={message.error ? "alert" : "status"} className={cn("text-sm", message.error ? "text-destructive" : "text-emerald-700 dark:text-emerald-400")}>
+                    {message.text}
+                  </p>
+                )}
+              </div>
               {!readOnly && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 sm:w-80">
                   <Button
                     type="button"
                     variant="outline"
