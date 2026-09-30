@@ -38,7 +38,7 @@ export async function syncRosters(
   const existing = await selectAll<PlayerRow>("load players", (from, to) =>
     ctx.db
       .from("players")
-      .select("id, first_name, last_name, team, position, class_year, active, source")
+      .select("id, first_name, last_name, team, position, class_year, active, source, deactivated_by_admin")
       .order("id")
       .range(from, to),
   );
@@ -92,6 +92,12 @@ export async function syncRosters(
         details: { from: c.from, to: c.to },
       })),
       ...changes.deactivated.map((id) => ({ action: "player_deactivated", player_id: id })),
+      // The admin screen offers to merge these.
+      ...changes.possibleMatches.map((m) => ({
+        action: "admin_player_possible_match",
+        player_id: m.temporaryId,
+        details: { cfbd_id: m.cfbdId, name: m.name, team: m.team },
+      })),
     ]);
   }
 

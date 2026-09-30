@@ -39,3 +39,9 @@ export function formatDay(iso: string): string {
 export function formatPpg(value: number | null): string {
   return value === null ? "–" : value.toFixed(1);
 }
+
+/** "Wed, Sep 30 · 3:15 PM ET", for timestamps such as change log entries. */
+export function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  return plain(`${dayFormat.format(date)} · ${timeFormat.format(date)} ET`);
+}

@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-30, after Phase 5 and the navy-and-gold restyle.
+Last updated: 2026-09-30, after Phase 6 (admin screen).
 
 ## Build status
 
@@ -17,7 +17,7 @@ Last updated: 2026-09-30, after Phase 5 and the navy-and-gold restyle.
 | 3. Authentication and navigation | Done: email/password sign-in, password reset, username onboarding, app shell. The Google button is built and works once Google is set up ([SETUP.md](SETUP.md) step 4) |
 | 4. Lineup builder | Done: `/lineup` shows the week's pool, per-player locks, budget and client checks that mirror the trigger; saves through a Server Action |
 | 5. Leagues and leaderboards | Done: global leaderboard, create/join/leave/delete leagues, league standings, global rank on the profile |
-| 6. Admin screen | Not started |
+| 6. Admin screen | Done: players (add, edit, deactivate, merge), projections, salary overrides, change log, run jobs |
 | 7. Polish and deployment (live scoring schedule) | Not started |
 
 ## System overview
@@ -95,7 +95,8 @@ flowchart TD
   in through `/auth/callback`, then `/reset-password` sets the new password.
   The form gives the same answer whether or not an account exists.
 - **Admins:** `profiles.is_admin`; the header shows an Admin link and
-  `/admin` returns 404 to everyone else.
+  `/admin` returns 404 to everyone else (`requireAdmin` in `dal.ts`, checked
+  in the admin layout, every admin page and every admin Server Action).
 
 ## Lineup builder
 
@@ -182,6 +183,49 @@ calm one, a bold one, and this middle ground).
   the selected tab, the top of the podium. Locked players turn navy with a
   gold lock. Injury tags use orange and red so they never read as gold.
 
+## Admin screen
+
+`/admin` has three tabs: **Players** (search; add, edit, deactivate; the
+season's projection; weekly salary overrides; merging a hand-added player
+into their CFBD player; the player's history), **Change log** (plain-English
+entries, filterable; "Roster changes" is the review of the weekly roster
+check) and **Jobs** (run any job now).
+
+Admins edit as themselves through the publishable key: RLS (`is_admin()`)
+allows the writes, and the database guarantees the rest, whatever screen or
+tool is used (`20261005000000_admin_screen`):
+
+```mermaid
+flowchart LR
+  A[Admin Server Action] -->|as the admin, RLS| DB[(players, projections,<br/>player_weekly_stats)]
+  DB -->|BEFORE trigger| R["IDs, sources, kickoff rule"]
+  DB -->|AFTER trigger| L[change_log<br/>changed_by = admin]
+  J[Jobs tab] -->|"POST /api/jobs/&lt;job&gt; + CRON_SECRET"| Route[Job route] --> Jobs[runJob, secret key]
+```
+
+- **Hand-added players** keep a CFBD ID if the admin enters one; otherwise
+  they get a temporary negative ID from `admin_player_id_seq`. Either way
+  `source = 'admin'`, so the roster check never deactivates them.
+- **Matching**: when the roster check adds a CFBD player with the same name
+  and team as an active temporary player, it logs
+  `admin_player_possible_match`. `merge_admin_player(temporary, cfbd)` moves
+  the temporary player's not-yet-started weeks (price and saved lineup
+  slots, with the lineup rules still checked) to the CFBD player, copies an
+  admin projection, and retires the temporary player. Weeks under way stay.
+- **Deactivation** by an admin sets `deactivated_by_admin`, and the roster
+  check leaves such players inactive.
+- **Projections** saved by an admin are marked `admin`; the pre-season setup
+  keeps them.
+- **Salary overrides** set `salary_overridden` (the pricing run keeps them)
+  and are allowed only until the week's first kickoff (PRD 2.7). A player
+  who isn't priced for an open week can be added to its pool at a price.
+- **Change log**: triggers write every admin change with `changed_by`. The
+  triggers act only for the `authenticated` role, so the jobs
+  (`service_role`) are unaffected and log their own entries.
+- **Running jobs**: the action checks the user is an admin, then calls the
+  site's own job route with `CRON_SECRET`, exactly as the scheduler does. The
+  secret-key client stays in the job route.
+
 ## Code layout
 
 | Path | Role |
@@ -195,6 +239,8 @@ calm one, a bold one, and this middle ground).
 | `src/components/lineup` | Lineup builder: slots, budget bar, player list |
 | `src/components/leaderboard`, `src/components/leagues` | Standings table, week/season switch, auto-refresh, league forms |
 | `src/lib/leaderboard`, `src/lib/leagues` | Board weeks and live check, form checks (pure, unit tested) and their data loaders |
+| `src/app/(app)/admin`, `src/components/admin` | Admin screen pages, forms and Server Actions |
+| `src/lib/admin` | Admin form checks, change log wording, job descriptions (pure, unit tested) and data loaders |
 | `src/lib/lineup` | Lineup rules, week picker, pool filters, time formats (pure, unit tested) and the page's data loader |
 | `src/lib/auth` | Who's signed in (`dal.ts`), which pages need sign-in (`routes.ts`), form checks (`validation.ts`) |
 | `src/proxy.ts`, `src/lib/supabase/proxy.ts` | Refresh the user's session cookie on every request, and send signed-out visitors on protected pages to sign in |
@@ -237,6 +283,7 @@ applied ones are never edited.
 | `20261002000000_player_injuries` | `player_injuries` (status, injury, note, source, date, admin override) |
 | `20261003000000_pricing_fringe` | `fringe_rank_offset` pricing setting (0 = last starter, 1 = first backup) |
 | `20261004000000_leaderboards` | `leaderboard()` ranking function; trigger stopping a league's creator from leaving it |
+| `20261005000000_admin_screen` | `players.deactivated_by_admin`, `admin_player_id_seq`, admin-write and change-log triggers, `merge_admin_player()` |
 
 ```mermaid
 erDiagram
@@ -267,7 +314,9 @@ lines and non-conference games, which aren't all in `players` or `games`.
   which shows a slot only once that player has kicked off.
 - **Admin writes**: players, projections, salary overrides, settings and
   injuries are writable from the app only by admins (`is_admin()`). An admin
-  edit to an injury must set `admin_override`, so the job keeps it.
+  edit to an injury must set `admin_override`, so the job keeps it. Admin
+  edits to players, projections and salaries are logged automatically, and
+  salary overrides close at the week's first kickoff.
 
 ## Pipelines
 
@@ -378,6 +427,9 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 | 2026-09-30 | Leaderboards ranked in the database by one function, with the caller's rights | One definition for both boards; RLS keeps league boards private |
 | 2026-09-30 | A league's creator can't leave it, only delete it | Otherwise nobody could rename or delete the league |
 | 2026-09-30 | Navy and gold, dark only, "middle ground" style | Chosen by the owner from three samples: calm was too plain, bold too loud |
+| 2026-09-30 | Admin edits go through RLS as the admin; the database logs them and enforces the rules | The log can't be skipped, and no admin code needs the secret key |
+| 2026-09-30 | Admin "run job" calls the job route with CRON_SECRET | Keeps the secret-key client in the job route only (CLAUDE.md) |
+| 2026-09-30 | Temporary players are merged into CFBD players for weeks not yet started only | Lineups for started weeks are locked; their points stay with the temporary player |
 
 ## Open items
 
@@ -389,6 +441,8 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 - **"Time TBA" kickoffs**: CFBD stores games without a set time at midnight
   Eastern, so those players lock at that midnight until the Tuesday roster
   check brings in the real time. Early, never late, but worth knowing.
+- **Injury edits on the admin screen**: not built yet. Injuries can be
+  overridden in the Supabase table editor (set `admin_override`).
 - **Injury "healthy" status**: an admin can't yet mark a listed player as
   healthy for good (a removed row comes back while Covers still lists them).
 - **Covers terms of use**: review before relying on the page in production.

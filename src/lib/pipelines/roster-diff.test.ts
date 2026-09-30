@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CfbdRosterPlayer } from "@/lib/cfbd/types";
 
-import { diffRosters, type PlayerRow } from "./roster-diff";
+import { diffRosters, nameKey, type PlayerRow } from "./roster-diff";
 
 const roster = (id: string, team: string, position: string | null, year = 2): CfbdRosterPlayer => ({
   id,
@@ -23,6 +23,7 @@ const row = (id: number, team: string, overrides: Partial<PlayerRow> = {}): Play
   class_year: 2,
   active: true,
   source: "cfbd",
+  deactivated_by_admin: false,
   ...overrides,
 });
 
@@ -33,6 +34,8 @@ describe("diffRosters", () => {
     row(3, "LSU"),
     row(4, "Texas", { active: false }),
     row(-1, "Auburn", { source: "admin", position: "RB" }),
+    row(5, "Florida", { active: false, deactivated_by_admin: true }),
+    row(-2, "Ole Miss", { source: "admin", first_name: "First11", last_name: "Last11 Jr." }),
   ];
   const rosters = [
     roster("1", "Georgia", "WR"),
@@ -41,6 +44,7 @@ describe("diffRosters", () => {
     roster("11", "Ole Miss", "FB"), // fullback, scored as RB
     roster("12", "Ole Miss", "LB"), // not a fantasy position
     roster("4", "Texas", "WR"), // back on a roster
+    roster("5", "Florida", "WR"), // on a roster, but an admin deactivated them
   ];
   const changes = diffRosters(existing, rosters);
 
@@ -56,6 +60,7 @@ describe("diffRosters", () => {
       [1, "Georgia", true],
       [2, "Texas A&M", true],
       [4, "Texas", true],
+      [5, "Florida", false],
     ]);
   });
 
@@ -65,5 +70,17 @@ describe("diffRosters", () => {
 
   it("deactivates CFBD players on no roster, but not admin-added or already inactive ones", () => {
     expect(changes.deactivated).toEqual([3]);
+  });
+
+  it("flags new CFBD players who match a temporary player by name and team", () => {
+    expect(changes.possibleMatches).toEqual([{ temporaryId: -2, cfbdId: 11, name: "First11 Last11", team: "Ole Miss" }]);
+  });
+});
+
+describe("nameKey", () => {
+  it("ignores case, accents, punctuation and suffixes", () => {
+    expect(nameKey("José", "Ruiz Jr.")).toBe(nameKey("jose", "ruiz"));
+    expect(nameKey("Anthony", "Evans III")).toBe("anthonyevans");
+    expect(nameKey("DJ", "Miller")).not.toBe(nameKey("D.J.", "Millers"));
   });
 });
