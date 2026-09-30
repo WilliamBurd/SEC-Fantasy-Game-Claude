@@ -1,6 +1,6 @@
 import "server-only";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { getSupabaseEnv } from "@/lib/supabase/env";
@@ -52,4 +52,11 @@ export async function requireProfile(next: string): Promise<{ user: SessionUser;
   const profile = await getProfile();
   if (!profile) redirect(`/onboarding?next=${encodeURIComponent(next)}`);
   return { user, profile };
+}
+
+/** For admin pages: everyone who isn't an admin gets a 404, so the page's existence isn't advertised. */
+export async function requireAdmin(next: string): Promise<{ user: SessionUser; profile: Profile }> {
+  const result = await requireProfile(next);
+  if (!result.profile.is_admin) notFound();
+  return result;
 }

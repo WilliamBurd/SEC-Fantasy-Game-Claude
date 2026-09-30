@@ -78,9 +78,8 @@ latest one -> **Redeploy**) so the app picks it up.
 | `injury-report` | Daily 13:00 (it only acts Wednesday to Friday and on game days) |
 
 On the Hobby plan each job runs once at some point within its hour. Live
-scoring every 10 minutes (`score-games`) needs Vercel Pro or Supabase
-pg_cron, and is set up in Phase 7; until then Monday's `reconcile-week`
-brings in the week's final stats.
+scoring every 10 minutes (`score-games`) is scheduled from Supabase instead
+(step 7), because the Hobby plan only allows daily jobs.
 
 ## 3. Supabase sign-in addresses (3 minutes)
 
@@ -179,3 +178,35 @@ UPDATE public.profiles SET is_admin = TRUE WHERE username = 'your_username';
 ```
 
 It should report 1 row updated. The admin screen (Phase 6) checks this flag.
+
+## 7. Live scoring every 10 minutes (Phase 7; 5 minutes)
+
+Supabase calls the site's `score-games` job every 10 minutes, so points,
+lineup totals and leaderboards update during games. When no SEC-vs-SEC game
+is on, the job answers straight away without using any CFBD calls.
+
+1. Vercel -> your project -> **Settings** -> **Environment Variables** ->
+   `CRON_SECRET` -> reveal and copy the value.
+2. Open `supabase/setup/live-scoring-schedule.sql` on GitHub and copy it
+   (**Copy raw file** button).
+3. Supabase -> **SQL Editor** -> **New query** -> paste. Replace
+   `PASTE_CRON_SECRET_HERE` with the value from step 1 (keep the quotes).
+   If your site address isn't `https://sec-fantasy-game.vercel.app`, change
+   that too. **Run**.
+4. Wait 10 minutes, then run this check; the top row should show
+   `status_code` 200:
+
+   ```sql
+   SELECT status_code, content FROM net._http_response ORDER BY created DESC LIMIT 5;
+   ```
+
+   A 401 means the secret doesn't match Vercel's `CRON_SECRET`; fix it with
+   `SELECT vault.update_secret((SELECT id FROM vault.secrets WHERE name = 'cron_secret'), 'THE_RIGHT_SECRET');`
+
+**CFBD budget:** while games are on, each run uses 1 CFBD call (2 once a
+game has been going three hours, until CFBD marks it finished). A full
+Saturday uses roughly 100 to 150 calls; with the weekly roster check and
+Monday's final scores, a month stays under the free plan's 1,000. To use
+fewer, change `*/10` to `*/15` in the schedule and run the file again.
+
+To pause live scoring: `SELECT cron.unschedule('score-games');`

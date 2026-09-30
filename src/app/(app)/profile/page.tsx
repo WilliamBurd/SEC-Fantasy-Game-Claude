@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { requireProfile } from "@/lib/auth/dal";
@@ -29,6 +30,12 @@ export default async function ProfilePage() {
       <PageHeader eyebrow="Profile" title={profile.username} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5">
         {user.email && <p className="text-sm text-muted-foreground">{user.email}</p>}
+        <Link
+          href={`/users/${encodeURIComponent(profile.username)}`}
+          className="mt-2 inline-block text-sm font-semibold text-primary hover:underline"
+        >
+          See your lineups week by week
+        </Link>
         <dl className="mt-4 grid gap-3 sm:grid-cols-3">
           {stats.map((s) => (
             <div key={s.label} className="rounded-xl bg-card p-4">

@@ -203,10 +203,15 @@ SET ROLE authenticated;
 SELECT tests.sign_in('00000000-0000-0000-0000-00000000000c');
 INSERT INTO public.players (id, first_name, last_name, team, position, source)
 VALUES (-1, 'Walk', 'On', 'LSU', 'RB', 'admin');
-UPDATE public.player_weekly_stats SET salary = 25, salary_overridden = TRUE WHERE player_id = 50;
+-- Week 5 has kicked off by now, so its salaries are closed to admins too
+-- (20261005000000_admin_screen); admin_test.sql covers overrides before kickoff.
+SELECT tests.expect_error(
+  $$UPDATE public.player_weekly_stats SET salary = 25 WHERE player_id = 50$$,
+  'Week 5 has kicked off');
 INSERT INTO public.change_log (changed_by, action, player_id)
 VALUES ('00000000-0000-0000-0000-00000000000c', 'salary_override', 50);
-SELECT tests.assert_eq((SELECT count(*) FROM public.change_log), 1::BIGINT, 'admin reads change log');
+-- The hand-added player is logged automatically, plus the manual entry.
+SELECT tests.assert_eq((SELECT count(*) FROM public.change_log), 2::BIGINT, 'admin reads change log');
 RESET ROLE;
 
 SET ROLE authenticated;

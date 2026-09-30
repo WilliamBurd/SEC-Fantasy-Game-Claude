@@ -4,6 +4,9 @@ import type { Board, BoardRow } from "@/lib/leaderboard/data";
 import type { BoardView } from "@/lib/leaderboard/weeks";
 import { cn } from "@/lib/utils";
 
+/** Each username links to that player's roster page. */
+export const rosterHref = (username: string) => `/users/${encodeURIComponent(username)}`;
+
 const ordinal = (n: number) => {
   const tens = n % 100;
   const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
@@ -100,7 +103,9 @@ function Podium({ rows, view, userId }: { rows: BoardRow[]; view: BoardView; use
         >
           {ordinal(rank)}
         </span>
-        <span className="w-full truncate text-xs font-bold">{row.username}</span>
+        <Link href={rosterHref(row.username)} className="w-full truncate text-xs font-bold hover:text-primary hover:underline">
+          {row.username}
+        </Link>
         {row.userId === userId && <span className="text-[10px] font-semibold text-primary">You</span>}
         <span className={cn("font-display font-bold", spot === 1 ? "text-[22px]" : "text-xl")}>{score.toFixed(2)}</span>
       </li>
@@ -121,7 +126,9 @@ function Row({ row, view, mine }: { row: BoardRow; view: BoardView; mine: boolea
     <tr className={cn(mine && "bg-accent")}>
       <td className="px-3 py-2.5 font-display text-xl font-bold text-muted-foreground">{rank}</td>
       <td className="px-3 py-2.5 font-semibold break-all">
-        {row.username}
+        <Link href={rosterHref(row.username)} className="hover:text-primary hover:underline">
+          {row.username}
+        </Link>
         {mine && <span className="ml-1.5 text-xs font-semibold text-primary">You</span>}
       </td>
       <td className={cn("px-3 py-2.5 text-right font-display text-xl", view === "week" ? "font-bold" : "hidden text-muted-foreground sm:table-cell")}>

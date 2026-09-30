@@ -39,3 +39,26 @@ export function formatDay(iso: string): string {
 export function formatPpg(value: number | null): string {
   return value === null ? "–" : value.toFixed(1);
 }
+
+/** "Wed, Sep 30 · 3:15 PM ET", for timestamps such as change log entries. */
+export function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  return plain(`${dayFormat.format(date)} · ${timeFormat.format(date)} ET`);
+}
+
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * "Locks in 2h 05m" when a kickoff is within 24 hours, "Locks in 45m" within
+ * the hour, "Locks in under a minute" at the end; null further out, or once
+ * it has kicked off.
+ */
+export function lockCountdown(kickoffAt: string, now: Date): string | null {
+  const left = new Date(kickoffAt).getTime() - now.getTime();
+  if (left <= 0 || left > 24 * HOUR_MS) return null;
+  if (left < MINUTE_MS) return "Locks in under a minute";
+  const hours = Math.floor(left / HOUR_MS);
+  const minutes = Math.floor((left % HOUR_MS) / MINUTE_MS);
+  return hours > 0 ? `Locks in ${hours}h ${String(minutes).padStart(2, "0")}m` : `Locks in ${minutes}m`;
+}

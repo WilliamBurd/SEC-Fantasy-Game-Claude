@@ -5,7 +5,7 @@
  */
 
 /** Pages that need a signed-in user (and every path below them). */
-export const PROTECTED_PATHS = ["/lineup", "/leaderboard", "/leagues", "/profile", "/admin", "/onboarding"];
+export const PROTECTED_PATHS = ["/lineup", "/leaderboard", "/leagues", "/users", "/profile", "/admin", "/onboarding"];
 
 /** Sign-in pages; a signed-in user is sent on from these. */
 export const AUTH_PATHS = ["/login", "/signup"];
