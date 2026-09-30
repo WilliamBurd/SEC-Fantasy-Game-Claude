@@ -6,7 +6,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, useTransition } from 
 import { saveLineup } from "@/app/(app)/lineup/actions";
 import { HeaderFigure, PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
-import { formatPpg } from "@/lib/lineup/format";
+import { formatPpg, lockCountdown } from "@/lib/lineup/format";
 import { DEFAULT_FILTERS, type PoolFilters, type PositionFilter } from "@/lib/lineup/pool";
 import {
   SALARY_CAP,
@@ -149,11 +149,24 @@ export function LineupBuilder(props: Props) {
   const allLocked = players.length > 0 && players.every((p) => isLocked(p, now));
   const showPoints = readOnly || players.some((p) => isLocked(p, now));
   const lockedSlots = SLOTS.filter((slot) => isSlotLocked(saved, slot.key, byId, now)).length;
+  // The next of your players to lock, for the header.
+  const nextKickoff = SLOTS.map((slot) => draft[slot.key])
+    .map((id) => (id === null ? undefined : byId.get(id)))
+    .filter((p): p is PoolPlayer => p !== undefined && !isLocked(p, now))
+    .map((p) => p.kickoffAt)
+    .sort()[0];
+  const nextLock = nextKickoff ? lockCountdown(nextKickoff, now) : null;
 
   return (
     <>
       <PageHeader
-        eyebrow={`Week ${week}${lockedSlots > 0 && !readOnly && !allLocked ? ` · ${lockedSlots} locked` : ""}`}
+        eyebrow={[
+          `Week ${week}`,
+          lockedSlots > 0 && !readOnly && !allLocked ? `${lockedSlots} locked` : null,
+          nextLock ? `next ${nextLock.charAt(0).toLowerCase()}${nextLock.slice(1)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         title="Your lineup"
         aside={
           (readOnly || allLocked) && hasLineup ? (
@@ -193,6 +206,7 @@ export function LineupBuilder(props: Props) {
                 return (
                   <SlotRow
                     key={slot.key}
+                    now={now}
                     label={slot.label}
                     hint={slot.allowed.join("/")}
                     playerId={id}
@@ -323,6 +337,7 @@ function Budget({ salary, remaining, filled }: { salary: number; remaining: numb
 }
 
 type SlotRowProps = {
+  now: Date;
   label: string;
   hint: string;
   playerId: number | null;
@@ -336,7 +351,7 @@ type SlotRowProps = {
   onRemove: () => void;
 };
 
-function SlotRow({ label, hint, playerId, player, slotLocked, canEdit, canFill, active, showPoints, onPick, onRemove }: SlotRowProps) {
+function SlotRow({ now, label, hint, playerId, player, slotLocked, canEdit, canFill, active, showPoints, onPick, onRemove }: SlotRowProps) {
   const chip = "flex size-[46px] shrink-0 items-center justify-center rounded-[9px] font-display font-extrabold";
   const chipText = label.length > 3 ? "text-base" : "text-lg";
 
@@ -389,7 +404,7 @@ function SlotRow({ label, hint, playerId, player, slotLocked, canEdit, canFill, 
             </span>
             <span className="block truncate text-xs text-muted-foreground">{matchup(player)}</span>
             <span className="block text-xs text-muted-foreground">
-              <Kickoff player={player} locked={slotLocked} />
+              <Kickoff player={player} locked={slotLocked} now={now} />
             </span>
             {injury && <span className="block text-xs text-muted-foreground">{injury}</span>}
           </>

@@ -30,7 +30,7 @@ export const JOB_INFO: Record<JobName, JobInfo> = {
   "score-games": {
     label: "Score live games",
     description: "Pulls box scores for games in progress and updates points and lineup totals.",
-    schedule: "Not scheduled yet (Phase 7)",
+    schedule: "Every 10 minutes, from Supabase (idle between games)",
     takesWeek: true,
     weekHint: "Blank: every week with a game in progress",
   },

@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-30, after Phase 6 (admin screen).
+Last updated: 2026-09-30, after Phase 7 (polish and live scoring).
 
 ## Build status
 
@@ -18,7 +18,7 @@ Last updated: 2026-09-30, after Phase 6 (admin screen).
 | 4. Lineup builder | Done: `/lineup` shows the week's pool, per-player locks, budget and client checks that mirror the trigger; saves through a Server Action |
 | 5. Leagues and leaderboards | Done: global leaderboard, create/join/leave/delete leagues, league standings, global rank on the profile |
 | 6. Admin screen | Done: players (add, edit, deactivate, merge), projections, salary overrides, change log, run jobs |
-| 7. Polish and deployment (live scoring schedule) | Not started |
+| 7. Polish and deployment | Done: kickoff countdowns, roster pages, live scoring every 10 minutes from Supabase pg_cron |
 
 ## System overview
 
@@ -162,8 +162,8 @@ only to other members, so a non-member gets an empty board.
   stops it, since nobody else could manage the league.
 - **Refreshing**: while a game of the shown week is in progress (kicked off
   in the last 5 hours, not final), the page reloads its data every minute.
-  Scores only change when a scoring job runs; until `score-games` is
-  scheduled (Phase 7) that's Monday's `reconcile-week`.
+  Scores change when a scoring job runs: `score-games` every 10 minutes
+  during games, and Monday's `reconcile-week` for final stats.
 - **Profile**: global rank is the user's season rank.
 
 ## Look and feel
@@ -226,6 +226,19 @@ flowchart LR
   site's own job route with `CRON_SECRET`, exactly as the scheduler does. The
   secret-key client stays in the job route.
 
+## Roster pages and countdowns
+
+- **`/users/<username>`** shows a player's lineups week by week, with season
+  points and rank; every username on the leaderboards and league pages
+  links to it. Other people's picks come from `public_lineups`, so each
+  slot appears only once that player's game kicks off ("Hidden until
+  kickoff"); a blank slot counts as empty once the week's games have all
+  kicked off. The owner sees their own lineup in full. Signed-in users
+  only, like the leaderboards.
+- **Countdowns**: in the last 24 hours before a kickoff, the lineup builder
+  shows "Locks in 2h 05m" on that player, and the page header shows the next
+  of your players to lock. They tick with the builder's 30-second clock.
+
 ## Code layout
 
 | Path | Role |
@@ -241,6 +254,8 @@ flowchart LR
 | `src/lib/leaderboard`, `src/lib/leagues` | Board weeks and live check, form checks (pure, unit tested) and their data loaders |
 | `src/app/(app)/admin`, `src/components/admin` | Admin screen pages, forms and Server Actions |
 | `src/lib/admin` | Admin form checks, change log wording, job descriptions (pure, unit tested) and data loaders |
+| `src/lib/rosters` | Roster page slots (pure, unit tested) and data loader |
+| `supabase/setup` | One-time setup scripts for the live project (not migrations): the live scoring schedule |
 | `src/lib/lineup` | Lineup rules, week picker, pool filters, time formats (pure, unit tested) and the page's data loader |
 | `src/lib/auth` | Who's signed in (`dal.ts`), which pages need sign-in (`routes.ts`), form checks (`validation.ts`) |
 | `src/proxy.ts`, `src/lib/supabase/proxy.ts` | Refresh the user's session cookie on every request, and send signed-out visitors on protected pages to sign in |
@@ -322,8 +337,12 @@ lines and non-conference games, which aren't all in `players` or `games`.
 
 Each job is `/api/jobs/<job>` (GET for the scheduler, POST by hand) with
 `Authorization: Bearer <CRON_SECRET>`, or `runJob()` called directly with the
-admin client. Schedules live in `vercel.json` and run on the production
-deployment; Vercel sends the `CRON_SECRET` header itself. Every automated change goes to `change_log` with
+admin client. The daily-or-less schedules live in `vercel.json` and run on
+the production deployment; Vercel sends the `CRON_SECRET` header itself.
+Live scoring runs every 10 minutes, which Vercel's free plan doesn't allow,
+so Supabase schedules it: pg_cron has pg_net POST to the job route, with the
+site address and `CRON_SECRET` kept in Supabase Vault (set up once from
+`supabase/setup/live-scoring-schedule.sql`, SETUP.md step 7). Every automated change goes to `change_log` with
 `changed_by = NULL`.
 
 | Job | Schedule | CFBD calls | Reads | Writes |
@@ -331,7 +350,7 @@ deployment; Vercel sends the `CRON_SECRET` header itself. Every automated change
 | `preseason-setup` | Once per season | ~39 | CFBD games, rosters, recruits, box scores | games, players, player_game_stats, projections |
 | `roster-check` | Tuesday 10:00 UTC | 17 | CFBD games, rosters | games (kickoff times), players, change_log |
 | `generate-salaries` | Tuesday 12:00 UTC, after roster-check | 0 | players, projections, stat lines, settings | player_weekly_stats (salary, blended PPG, starter share), change_log |
-| `score-games` | Every 10 min on game days (not scheduled yet: needs Vercel Pro or pg_cron) | 1–2 per run while live | CFBD box scores, finished games | player_game_stats, player_weekly_stats, games.status, lineup totals |
+| `score-games` | Every 10 min, from Supabase pg_cron (`supabase/setup/live-scoring-schedule.sql`); idle between games | 1–2 per run while live, 0 when idle | CFBD box scores, finished games | player_game_stats, player_weekly_stats, games.status, lineup totals |
 | `reconcile-week` | Monday 12:00 UTC | 2 | CFBD box scores, finished games | as score-games, marks games final |
 | `injury-report` | Daily 13:00 UTC; acts Wed–Fri and within 24h of an SEC kickoff | 0 (1 Covers request) | Covers page, players | player_injuries, change_log |
 
@@ -430,6 +449,8 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 | 2026-09-30 | Admin edits go through RLS as the admin; the database logs them and enforces the rules | The log can't be skipped, and no admin code needs the secret key |
 | 2026-09-30 | Admin "run job" calls the job route with CRON_SECRET | Keeps the secret-key client in the job route only (CLAUDE.md) |
 | 2026-09-30 | Temporary players are merged into CFBD players for weeks not yet started only | Lineups for started weeks are locked; their points stay with the temporary player |
+| 2026-09-30 | Live scoring scheduled by Supabase pg_cron + pg_net, secrets in Vault | Free; Vercel's free plan allows only daily jobs |
+| 2026-09-30 | Roster pages for signed-in users only | Matches the leaderboards they link from; easy to open up later |
 
 ## Open items
 
@@ -446,9 +467,9 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 - **Injury "healthy" status**: an admin can't yet mark a listed player as
   healthy for good (a removed row comes back while Covers still lists them).
 - **Covers terms of use**: review before relying on the page in production.
-- **Live scoring schedule**: `score-games` every 10 minutes needs Vercel Pro
-  or Supabase pg_cron (Phase 7). Until then Monday's `reconcile-week` brings
-  in final stats.
+- **CFBD budget with live scoring**: roughly 100–150 calls per full
+  Saturday; a month should stay under the free plan's 1,000. Watch it in the
+  first busy month; the schedule can drop to every 15 minutes.
 - **Email**: Supabase's built-in email is rate limited; custom SMTP is needed
   before launch (SETUP.md step 5).
 - **Deleting an account that created a league** fails until its leagues are

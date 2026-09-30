@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/leaderboard/auto-refresh";
-import { BoardControls, Standings } from "@/components/leaderboard/standings";
+import { BoardControls, rosterHref, Standings } from "@/components/leaderboard/standings";
 import { InviteShare, LeaveOrDeleteLeague, RenameLeagueForm } from "@/components/leagues/league-forms";
 import { HeaderFigure, PageHeader } from "@/components/shell/page-header";
 import { requireProfile } from "@/lib/auth/dal";
@@ -70,7 +70,9 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/l
               <ul className="mt-3 divide-y overflow-hidden rounded-xl bg-card text-sm">
                 {[...board.rows].sort((a, b) => a.username.localeCompare(b.username)).map((row) => (
                   <li key={row.userId} className="px-3 py-2.5 font-semibold">
-                    {row.username}
+                    <Link href={rosterHref(row.username)} className="hover:text-primary hover:underline">
+                      {row.username}
+                    </Link>
                     {row.userId === user.id && <span className="ml-1.5 text-xs text-primary">You</span>}
                   </li>
                 ))}

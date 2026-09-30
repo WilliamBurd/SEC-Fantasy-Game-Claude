@@ -210,7 +210,7 @@ function PlayerRow({ player, draft, check, onAdd, onRemove, canEditSlot, now, re
         </div>
         <div className="truncate text-xs text-muted-foreground">{matchup(player)}</div>
         <div className="text-xs text-muted-foreground">
-          <Kickoff player={player} locked={locked} />
+          <Kickoff player={player} locked={locked} now={now} />
         </div>
         {injury && <div className="truncate text-xs text-muted-foreground">{injury}</div>}
       </div>

@@ -1,6 +1,6 @@
 import { Lock } from "lucide-react";
 
-import { formatKickoff } from "@/lib/lineup/format";
+import { formatKickoff, lockCountdown } from "@/lib/lineup/format";
 import type { InjuryStatus, PoolPlayer } from "@/lib/lineup/rules";
 import { cn } from "@/lib/utils";
 
@@ -40,13 +40,15 @@ export function matchup(player: PoolPlayer): string {
   return `${player.position} · ${player.team} ${player.home ? "vs" : "@"} ${player.opponent}`;
 }
 
-/** Kickoff time, with a lock once the game has started. */
-export function Kickoff({ player, locked }: { player: PoolPlayer; locked: boolean }) {
+/** Kickoff time, a countdown in the last 24 hours, and a lock once the game has started. */
+export function Kickoff({ player, locked, now }: { player: PoolPlayer; locked: boolean; now?: Date }) {
+  const countdown = !locked && now ? lockCountdown(player.kickoffAt, now) : null;
   return (
-    <span className={cn("inline-flex items-center gap-1", locked && "font-medium text-foreground/85")}>
+    <span className={cn("inline-flex flex-wrap items-center gap-x-1", locked && "font-medium text-foreground/85")}>
       {locked && <Lock className="size-3 text-primary" strokeWidth={2.5} aria-label="Locked" />}
       {locked ? "Locked · " : ""}
       {formatKickoff(player.kickoffAt)}
+      {countdown && <span className="font-semibold text-primary">· {countdown}</span>}
     </span>
   );
 }
