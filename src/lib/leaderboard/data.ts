@@ -61,6 +61,15 @@ type RpcRow = {
   season_rank: number;
 };
 
+/**
+ * Arguments for leaderboard(). The global board leaves p_league_id out (it
+ * defaults to NULL): a count-only request sends arguments in the URL, where
+ * null would arrive as the text "null".
+ */
+function boardArgs(season: number, week: number, leagueId?: string) {
+  return leagueId ? { p_season: season, p_week: week, p_league_id: leagueId } : { p_season: season, p_week: week };
+}
+
 const toRow = (r: RpcRow): BoardRow => ({
   userId: r.user_id,
   username: r.username,
@@ -87,7 +96,7 @@ export async function loadBoard(
   },
 ): Promise<Board> {
   const { schedule, week, view, userId, leagueId, limit, now } = options;
-  const args = { p_season: schedule.season, p_week: week, p_league_id: leagueId ?? null };
+  const args = boardArgs(schedule.season, week, leagueId);
   const [first, second] = view === "week" ? ["week_rank", "season_rank"] : ["season_rank", "week_rank"];
 
   const [page, mine] = await Promise.all([
@@ -118,7 +127,7 @@ export async function loadMyRank(
   schedule: BoardSchedule,
   userId: string,
 ): Promise<{ rank: number; total: number } | null> {
-  const args = { p_season: schedule.season, p_week: schedule.weeks.at(-1) ?? 0, p_league_id: null };
+  const args = boardArgs(schedule.season, schedule.weeks.at(-1) ?? 0);
   const [mine, all] = await Promise.all([
     db.rpc("leaderboard", args).eq("user_id", userId).maybeSingle(),
     db.rpc("leaderboard", args, { count: "exact", head: true }),

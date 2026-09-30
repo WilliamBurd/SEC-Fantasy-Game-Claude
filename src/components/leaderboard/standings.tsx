@@ -32,10 +32,10 @@ export function Standings({
             <th scope="col" className="px-3 py-2 text-left font-medium">
               Player
             </th>
-            <th scope="col" className={cn("px-3 py-2 text-right font-medium", view === "week" && "text-foreground")}>
+            <th scope="col" className={cn("px-3 py-2 text-right font-medium", view === "week" ? "text-foreground" : "hidden sm:table-cell")}>
               Week {week}
             </th>
-            <th scope="col" className={cn("px-3 py-2 text-right font-medium", view === "season" && "text-foreground")}>
+            <th scope="col" className={cn("px-3 py-2 text-right font-medium", view === "season" ? "text-foreground" : "hidden sm:table-cell")}>
               Season
             </th>
           </tr>
@@ -65,14 +65,14 @@ function Row({ row, view, mine }: { row: BoardRow; view: BoardView; mine: boolea
   return (
     <tr className={cn(mine && "bg-accent font-medium")}>
       <td className="px-3 py-2.5 tabular-nums">{rank}</td>
-      <td className="max-w-0 truncate px-3 py-2.5">
+      <td className="px-3 py-2.5 break-all">
         {row.username}
         {mine && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(you)</span>}
       </td>
-      <td className={cn("px-3 py-2.5 text-right tabular-nums", view === "week" ? "font-semibold" : "text-muted-foreground")}>
+      <td className={cn("px-3 py-2.5 text-right tabular-nums", view === "week" ? "font-semibold" : "hidden text-muted-foreground sm:table-cell")}>
         {row.weekScore.toFixed(2)}
       </td>
-      <td className={cn("px-3 py-2.5 text-right tabular-nums", view === "season" ? "font-semibold" : "text-muted-foreground")}>
+      <td className={cn("px-3 py-2.5 text-right tabular-nums", view === "season" ? "font-semibold" : "hidden text-muted-foreground sm:table-cell")}>
         {row.seasonScore.toFixed(2)}
       </td>
     </tr>
