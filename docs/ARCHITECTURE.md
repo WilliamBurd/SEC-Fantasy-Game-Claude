@@ -135,8 +135,10 @@ flowchart TD
   switch (on by default) to hide players with 0 Blended PPG.
 - **Times** are shown in US Eastern, the same on server and browser. Games
   stored at midnight Eastern are shown as "time TBA" (CFBD's placeholder).
-- **Phones:** one column, with the budget and Save button in a bar along the
-  bottom; tapping an empty slot jumps to the list filtered to that position.
+- **Layout:** the budget and Save button sit in a bar pinned to the bottom
+  of the screen at every size, so saving never needs a scroll. Phones get
+  one column, and tapping an empty slot jumps to the list filtered to that
+  position; wide screens show the lineup beside the list.
 
 ## Leagues and leaderboards
 
