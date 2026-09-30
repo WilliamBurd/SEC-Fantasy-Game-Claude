@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-30, after Phase 3 and the pricing tuning.
+Last updated: 2026-09-30, after Phase 4 (lineup builder).
 
 ## Build status
 
@@ -15,7 +15,7 @@ Last updated: 2026-09-30, after Phase 3 and the pricing tuning.
 | Injury feed (added after Phase 2) | Done; table filled from Covers |
 | Pre-Phase 3 setup | Done: `main` branch, job schedules, hosted on Vercel at <https://sec-fantasy-game.vercel.app> |
 | 3. Authentication and navigation | Done: email/password sign-in, password reset, username onboarding, app shell. The Google button is built and works once Google is set up ([SETUP.md](SETUP.md) step 4) |
-| 4. Lineup builder | Not started |
+| 4. Lineup builder | Done: `/lineup` shows the week's pool, per-player locks, budget and client checks that mirror the trigger; saves through a Server Action |
 | 5. Leagues and leaderboards | Not started |
 | 6. Admin screen | Not started |
 | 7. Polish and deployment (live scoring schedule) | Not started |
@@ -97,6 +97,47 @@ flowchart TD
 - **Admins:** `profiles.is_admin`; the header shows an Admin link and
   `/admin` returns 404 to everyone else.
 
+## Lineup builder
+
+`/lineup` is a Server Component that loads the week (as the signed-in user,
+so RLS applies) and hands it to one Client Component, `LineupBuilder`, which
+keeps the draft in React state (`useReducer`) until the user saves.
+
+```mermaid
+flowchart TD
+  P["/lineup page<br/>src/lib/lineup/data.ts"] -->|games, priced weeks| W[pickLineupWeek]
+  P -->|"player_weekly_stats + players + games,<br/>player_injuries, the user's lineups row"| B[LineupBuilder<br/>client state]
+  B -->|"placePlayer, validateLineup<br/>(same rules as the trigger)"| B
+  B -->|saveLineup Server Action| A[update, or insert if new]
+  A --> T[validate_lineup trigger]
+  T -- rejects --> M[trigger's message shown,<br/>player IDs swapped for names]
+```
+
+- **Which week:** the earliest priced week with a game still to kick off.
+  Once a week's last game kicks off it stays on show, read-only, until the
+  next week is priced (Tuesday 12:00 UTC); the page says when that is.
+  Before any week is priced the page says when the next one opens.
+- **Locks:** each player locks at their own game's kickoff. The builder
+  works this out from the kickoff time and re-checks every 30 seconds, so a
+  page left open locks players on time; a slot whose saved player has kicked
+  off can't be changed or emptied.
+- **Client checks** (`src/lib/lineup/rules.ts`, unit tested) mirror the
+  trigger: cap of 100, positions, no duplicates, player in the pool and
+  active, no changes to locked slots. They only guide the user; the trigger
+  decides.
+- **Saving:** `saveLineup` re-checks sign-in, validates the request's shape,
+  then updates the user's row for that week, or inserts it if there isn't
+  one. It doesn't upsert, because users may update only the slot columns.
+  A trigger refusal (`P0001`) comes back as the trigger's own message.
+- **The player list** is filtered and sorted in the browser
+  (`src/lib/lineup/pool.ts`): position (including FLEX), team, search,
+  maximum salary, sort by salary, Blended PPG, value, kickoff or name, and a
+  switch (on by default) to hide players with 0 Blended PPG.
+- **Times** are shown in US Eastern, the same on server and browser. Games
+  stored at midnight Eastern are shown as "time TBA" (CFBD's placeholder).
+- **Phones:** one column, with the budget and Save button in a bar along the
+  bottom; tapping an empty slot jumps to the list filtered to that position.
+
 ## Code layout
 
 | Path | Role |
@@ -107,6 +148,8 @@ flowchart TD
 | `src/app/auth` | Sign-in Server Actions and the email/Google landing routes (`/auth/callback`, `/auth/confirm`) |
 | `src/app/onboarding` | Username picker every new user goes through once |
 | `src/components/shell` | Header, desktop navigation, mobile menu, user dropdown |
+| `src/components/lineup` | Lineup builder: slots, budget bar, player list |
+| `src/lib/lineup` | Lineup rules, week picker, pool filters, time formats (pure, unit tested) and the page's data loader |
 | `src/lib/auth` | Who's signed in (`dal.ts`), which pages need sign-in (`routes.ts`), form checks (`validation.ts`) |
 | `src/proxy.ts`, `src/lib/supabase/proxy.ts` | Refresh the user's session cookie on every request, and send signed-out visitors on protected pages to sign in |
 | `src/lib/supabase` | Clients: `client.ts` (browser), `server.ts` (server, as the user), `admin.ts` (secret key, jobs only) |
@@ -282,14 +325,20 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 | 2026-09-30 | Supabase Auth with Server Actions; username picked in onboarding, not at sign-up | One flow for email and Google users; Google accounts have no username to start with |
 | 2026-09-30 | Access checked in the proxy (fast, cookie only) and again on each page (verified) | The proxy runs on every request and can't be the only guard |
 | 2026-09-30 | Pricing fringe = last starter, measured over all SEC teams | Starting QBs had become too pricey; prices moved when different teams were in the pool even with no new games |
+| 2026-09-30 | Lineup draft kept in React state (`useReducer`), not Zustand | One component owns it; no extra dependency |
+| 2026-09-30 | Builder shows the earliest priced week with a game to come; a finished week stays read-only until the next is priced | Users always see the lineup that matters now |
+| 2026-09-30 | Lineup save is update-then-insert, not upsert | Users may update only slot columns; the trigger's messages reach the user unchanged |
 
 ## Open items
 
 - **Pricing**: tuned on 2026-09-30 (see Decisions). Worth another look once
   a few weeks of real lineups show whether QBs are now too cheap. About 420
   of ~500 pool players cost the 5-credit minimum; nearly all are backups who
-  haven't played, so the lineup builder should sort and filter by price and
-  points.
+  haven't played; the lineup builder hides players with 0 Blended PPG by
+  default.
+- **"Time TBA" kickoffs**: CFBD stores games without a set time at midnight
+  Eastern, so those players lock at that midnight until the Tuesday roster
+  check brings in the real time. Early, never late, but worth knowing.
 - **Injury "healthy" status**: an admin can't yet mark a listed player as
   healthy for good (a removed row comes back while Covers still lists them).
 - **Covers terms of use**: review before relying on the page in production.
