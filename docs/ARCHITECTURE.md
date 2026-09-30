@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-29, after Phase 2, the injury feed and the pre-Phase 3 setup.
+Last updated: 2026-09-30, after Phase 3 (sign-in, onboarding and the app shell).
 
 ## Build status
 
@@ -13,8 +13,8 @@ Last updated: 2026-09-29, after Phase 2, the injury feed and the pre-Phase 3 set
 | 1. Foundation and database | Done |
 | 2. CFBD API and data pipelines | Done, run against the real Supabase project (2026 season loaded, Weeks 5 and 6 priced) |
 | Injury feed (added after Phase 2) | Done; table filled from Covers |
-| Pre-Phase 3 setup | `main` branch and job schedules done; hosted on Vercel at <https://sec-fantasy-game-claude.vercel.app>; Google sign-in and email follow [SETUP.md](SETUP.md) |
-| 3. Authentication and navigation | Not started |
+| Pre-Phase 3 setup | Done: `main` branch, job schedules, hosted on Vercel at <https://sec-fantasy-game.vercel.app> |
+| 3. Authentication and navigation | Done: email/password sign-in, password reset, username onboarding, app shell. The Google button is built and works once Google is set up ([SETUP.md](SETUP.md) step 4) |
 | 4. Lineup builder | Not started |
 | 5. Leagues and leaderboards | Not started |
 | 6. Admin screen | Not started |
@@ -60,12 +60,55 @@ There are two ways into the database, and they're kept apart on purpose:
 - **Scheduled jobs** use the secret key (`src/lib/supabase/admin.ts`), which
   bypasses RLS. Only the job route imports it.
 
+## Sign-in and accounts
+
+Supabase Auth handles accounts, passwords and Google sign-in; the session
+lives in cookies set by `@supabase/ssr`.
+
+```mermaid
+flowchart TD
+  V[Visitor] -->|email + password| A[signIn / signUp<br/>Server Actions]
+  V -->|Continue with Google| G[Google] --> CB["/auth/callback<br/>code -> session cookie"]
+  E[Email link: confirm or reset] --> CB
+  E -. token-hash template .-> CF["/auth/confirm<br/>works on any device"]
+  A --> P{Has a profile?}
+  CB --> P
+  CF --> P
+  P -- no --> O["/onboarding<br/>pick a username"] --> H
+  P -- yes --> H[Requested page]
+```
+
+- **Every account has a profile.** A signed-in user without a `profiles`
+  row (a new sign-up, by email or Google) is sent to `/onboarding` before any
+  player page. Usernames are 3–20 letters, numbers or underscores, unique
+  regardless of case (enforced by the database too).
+- **Two layers of access checks.** The proxy makes a quick, cookie-only
+  check and sends signed-out visitors on protected pages to
+  `/login?next=...`. Each protected page then checks properly on the server
+  through `src/lib/auth/dal.ts` (`requireUser`, `requireProfile`), which
+  verifies the session token. The database's RLS is the final word on data.
+- **After sign-in, sign-out or onboarding** the actions call
+  `revalidatePath("/", "layout")` so the header re-renders with the new state.
+- **Redirects stay on this site.** `next` values are checked by
+  `safeNextPath`, so a crafted link can't bounce users elsewhere.
+- **Password reset:** `/forgot-password` emails a link that signs the user
+  in through `/auth/callback`, then `/reset-password` sets the new password.
+  The form gives the same answer whether or not an account exists.
+- **Admins:** `profiles.is_admin`; the header shows an Admin link and
+  `/admin` returns 404 to everyone else.
+
 ## Code layout
 
 | Path | Role |
 | --- | --- |
 | `src/app` | Pages, layouts and the `/api/jobs/[job]` route |
-| `src/proxy.ts`, `src/lib/supabase/proxy.ts` | Refresh the user's session cookie on every request |
+| `src/app/(auth)` | Sign-in pages: `/login`, `/signup`, `/forgot-password`, `/reset-password` |
+| `src/app/(app)` | Pages for signed-in players with a username: `/lineup`, `/leaderboard`, `/leagues`, `/profile`, `/admin` |
+| `src/app/auth` | Sign-in Server Actions and the email/Google landing routes (`/auth/callback`, `/auth/confirm`) |
+| `src/app/onboarding` | Username picker every new user goes through once |
+| `src/components/shell` | Header, desktop navigation, mobile menu, user dropdown |
+| `src/lib/auth` | Who's signed in (`dal.ts`), which pages need sign-in (`routes.ts`), form checks (`validation.ts`) |
+| `src/proxy.ts`, `src/lib/supabase/proxy.ts` | Refresh the user's session cookie on every request, and send signed-out visitors on protected pages to sign in |
 | `src/lib/supabase` | Clients: `client.ts` (browser), `server.ts` (server, as the user), `admin.ts` (secret key, jobs only) |
 | `src/lib/cfbd` | CFBD client; each method is one API call |
 | `src/lib/pricing` | Pricing engine: Blended PPG, starter share, value over fringe, salary limits |
@@ -210,7 +253,7 @@ Injury status is display only; pricing never reads it.
 
 ## Configuration
 
-Production: <https://sec-fantasy-game-claude.vercel.app> (Vercel, deploys `main`).
+Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 
 | Variable | Where it's used |
 | --- | --- |
@@ -232,6 +275,8 @@ Production: <https://sec-fantasy-game-claude.vercel.app> (Vercel, deploys `main`
 | 2026-09-29 | Injuries from Covers; display only | Only one of the three sources had current data |
 | 2026-09-29 | Injury writes guarded by a safety check | A broken page read must never wipe good data |
 | 2026-09-29 | Host on Vercel; schedule the daily-or-less jobs now, live scoring later | Keeps stats and prices current before launch on the free plan |
+| 2026-09-30 | Supabase Auth with Server Actions; username picked in onboarding, not at sign-up | One flow for email and Google users; Google accounts have no username to start with |
+| 2026-09-30 | Access checked in the proxy (fast, cookie only) and again on each page (verified) | The proxy runs on every request and can't be the only guard |
 
 ## Open items
 
@@ -246,6 +291,8 @@ Production: <https://sec-fantasy-game-claude.vercel.app> (Vercel, deploys `main`
   in final stats.
 - **Email**: Supabase's built-in email is rate limited; custom SMTP is needed
   before launch (SETUP.md step 5).
+- **Global rank on the profile page** shows "Soon" until the leaderboard
+  (Phase 5).
 
 ## Keeping this document current
 

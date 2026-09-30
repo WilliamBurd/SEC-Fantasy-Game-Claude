@@ -8,7 +8,8 @@ Values used below:
 
 - Supabase project URL: `https://<ref>.supabase.co` (Supabase dashboard ->
   Project Settings -> API)
-- Your app's address: `https://<app>.vercel.app` (you get it in step 2)
+- Your app's address: `https://sec-fantasy-game.vercel.app` (shown as
+  `https://<app>.vercel.app` below; you get it in step 2)
 
 ## 1. Make `main` the default branch (GitHub, 2 minutes)
 
@@ -152,6 +153,21 @@ Porkbun, about $10 a year).
 
 This can wait until just before launch; sign-in works without it for
 testing.
+
+### Optional: email links that work on any device
+
+By default, a confirmation or password-reset link only works in the browser
+that asked for it (Supabase's secure default for this setup). To make links
+work when someone signs up on a laptop and opens the email on their phone,
+change two templates in Supabase -> **Authentication** -> **Emails** ->
+**Templates**. In each, replace `{{ .ConfirmationURL }}` in the link with:
+
+- **Confirm signup**:
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/onboarding`
+- **Reset password**:
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password`
+
+The app handles both kinds of link.
 
 ## 6. Make yourself an admin (after Phase 3; 1 minute)
 
