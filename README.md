@@ -18,7 +18,9 @@ system is built is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Path | What's there |
 | --- | --- |
-| `src/app` | Pages and layouts |
+| `src/app` | Pages and layouts (sign-in pages in `(auth)`, player pages in `(app)`) |
+| `src/components/shell` | Header, navigation, mobile menu, user dropdown |
+| `src/lib/auth` | Who's signed in, which pages need sign-in, form checks |
 | `src/components/ui` | shadcn/ui components |
 | `src/lib/supabase` | Supabase clients for the browser, the server, the proxy, and trusted jobs |
 | `src/lib/cfbd` | CollegeFootballData API client |
