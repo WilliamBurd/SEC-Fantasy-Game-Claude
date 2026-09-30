@@ -31,6 +31,8 @@ export type PricedPlayer = {
 export type PricingResult = {
   players: PricedPlayer[];
   teamsInPool: number;
+  /** Teams the fringe levels and credits per point were measured over (all SEC teams). */
+  teamsInReference: number;
   /** Fringe level (points per game) at each position. */
   fringeLevel: Record<Position, number>;
   /** Credits per point of value this week. */
@@ -72,38 +74,50 @@ export function blendedPpg(input: PricingInput, settings: PricingSettings): numb
  * Prices one week's player pool (PRD 2.5):
  * 1. Blended PPG for every player.
  * 2. Fringe level per position: the Blended PPG of the player ranked
- *    depth × teams + 1 at that position (0 if the pool is shallower).
+ *    depth × teams + fringe_rank_offset at that position (0 if there are
+ *    fewer players), counted over `reference`: every active player on every
+ *    SEC team, not just this week's pool.
  * 3. Value = Blended PPG − fringe level, never below 0.
  * 4. Salary = min + value × k. k is set so the most expensive possible
- *    lineup (best QB, 2 RB, 2 WR, TE, FLEX by value) costs top_lineup_target.
- *    One k for every position keeps positions balanced, and a straight line
- *    means any lineup spending the full cap has about the same expected
- *    points however it's built.
+ *    lineup from `reference` (best QB, 2 RB, 2 WR, TE, FLEX by value) costs
+ *    top_lineup_target. One k for every position keeps positions balanced,
+ *    and a straight line means any lineup spending the full cap has about
+ *    the same expected points however it's built.
  * 5. After a player's first priced week, the salary moves at most
  *    max_weekly_change from the previous one. Then it's kept within
  *    min..max and rounded.
+ *
+ * Measuring the fringe and k over all SEC teams means a player's price
+ * doesn't move just because different teams are in the week's pool.
+ * `reference` defaults to the pool itself.
  */
-export function priceWeek(inputs: PricingInput[], settings: PricingSettings): PricingResult {
+export function priceWeek(
+  inputs: PricingInput[],
+  settings: PricingSettings,
+  reference: PricingInput[] = inputs,
+): PricingResult {
   const teamsInPool = new Set(inputs.map((p) => p.team)).size;
-  const blended = inputs.map((input) => ({ input, blendedPpg: blendedPpg(input, settings) }));
+  const teamsInReference = new Set(reference.map((p) => p.team)).size;
+  const ppg = (input: PricingInput) => blendedPpg(input, settings);
 
   const fringeLevel = {} as Record<Position, number>;
   for (const position of POSITIONS) {
-    const ranked = blended
-      .filter((p) => p.input.position === position)
-      .map((p) => p.blendedPpg)
+    const ranked = reference
+      .filter((p) => p.position === position)
+      .map(ppg)
       .sort((a, b) => b - a);
-    const fringeRank = settings.fringe_depth[position] * teamsInPool + 1;
+    const fringeRank = Math.max(1, settings.fringe_depth[position] * teamsInReference + settings.fringe_rank_offset);
     fringeLevel[position] = ranked[fringeRank - 1] ?? 0;
   }
+  const valueOf = (input: PricingInput, blended: number) => Math.max(0, blended - fringeLevel[input.position]);
 
-  const withValue = blended.map((p) => ({
-    ...p,
-    value: Math.max(0, p.blendedPpg - fringeLevel[p.input.position]),
-  }));
+  const withValue = inputs.map((input) => {
+    const blended = ppg(input);
+    return { input, blendedPpg: blended, value: valueOf(input, blended) };
+  });
 
   const topValue = bestLineup(
-    withValue.map((p) => ({ playerId: p.input.playerId, position: p.input.position, amount: p.value })),
+    reference.map((p) => ({ playerId: p.playerId, position: p.position, amount: valueOf(p, ppg(p)) })),
   );
   const creditsPerPoint =
     topValue > 0 ? Math.max(0, settings.top_lineup_target - LINEUP_SIZE * settings.min_salary) / topValue : 0;
@@ -133,6 +147,7 @@ export function priceWeek(inputs: PricingInput[], settings: PricingSettings): Pr
   return {
     players,
     teamsInPool,
+    teamsInReference,
     fringeLevel: Object.fromEntries(
       POSITIONS.map((p) => [p, round2(fringeLevel[p])]),
     ) as Record<Position, number>,

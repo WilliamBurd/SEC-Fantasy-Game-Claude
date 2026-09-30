@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { blendedPpg, mostExpensiveLineup, priceWeek, type PricingInput } from "./engine";
 import { autoProjection } from "./projection";
-import { DEFAULT_PRICING_SETTINGS as settings, withDefaults, type Position } from "./settings";
+import { DEFAULT_PRICING_SETTINGS, withDefaults, type Position } from "./settings";
+
+const settings = DEFAULT_PRICING_SETTINGS;
+/** The original rule: the fringe is the first player past the starters. */
+const firstBackup = { ...DEFAULT_PRICING_SETTINGS, fringe_rank_offset: 1 };
 
 let nextId = 1;
 function player(position: Position, ppg: number, overrides: Partial<PricingInput> = {}): PricingInput {
@@ -73,9 +77,9 @@ function exampleWeek() {
   return pool;
 }
 
-describe("priceWeek", () => {
+describe("priceWeek (fringe = first backup)", () => {
   const pool = exampleWeek();
-  const result = priceWeek(pool, settings);
+  const result = priceWeek(pool, firstBackup);
   const salaryOf = (position: Position, ppg: number) =>
     result.players.find((p) => p.position === position && p.blendedPpg === ppg)!.salary;
 
@@ -123,7 +127,7 @@ describe("priceWeek", () => {
   it("limits the weekly price change", () => {
     const riser = player("WR", 21, { team: "Alabama", previousSalary: 12 });
     const faller = player("WR", 3, { team: "Alabama", previousSalary: 20 });
-    const priced = priceWeek([...exampleWeek(), riser, faller], settings);
+    const priced = priceWeek([...exampleWeek(), riser, faller], firstBackup);
     expect(priced.players.find((p) => p.playerId === riser.playerId)!.salary).toBe(16);
     expect(priced.players.find((p) => p.playerId === faller.playerId)!.salary).toBe(16);
   });
@@ -131,6 +135,38 @@ describe("priceWeek", () => {
   it("prices everyone at the min when no one has value", () => {
     const flat = priceWeek([player("QB", 5), player("QB", 5)], settings);
     expect(flat.players.map((p) => p.salary)).toEqual([5, 5]);
+  });
+});
+
+describe("priceWeek (default: fringe = last starter, over every SEC team)", () => {
+  it("sets the fringe at the last starter", () => {
+    // 8 teams: the 8th QB (12), 16th RB (7), 24th WR (4), 8th TE (4).
+    const result = priceWeek(exampleWeek(), settings);
+    expect(result.fringeLevel).toEqual({ QB: 12, RB: 7, WR: 4, TE: 4 });
+    const qb = (ppg: number) => result.players.find((p) => p.position === "QB" && p.blendedPpg === ppg)!.salary;
+    expect(qb(12)).toBe(5); // the worst starter costs the minimum
+    expect(qb(26)).toBeLessThan(priceWeek(exampleWeek(), firstBackup).players.find((p) => p.blendedPpg === 26)!.salary);
+  });
+
+  it("prices a player the same whichever teams are in the week's pool", () => {
+    const everyone = exampleWeek();
+    const full = priceWeek(everyone, settings);
+    // A week where only three teams play: price them against every SEC team.
+    const pool = everyone.filter((p) => ["Alabama", "Georgia", "LSU"].includes(p.team));
+    const partial = priceWeek(pool, settings, everyone);
+
+    expect(partial.teamsInPool).toBe(3);
+    expect(partial.teamsInReference).toBe(8);
+    expect(partial.fringeLevel).toEqual(full.fringeLevel);
+    expect(partial.creditsPerPoint).toBe(full.creditsPerPoint);
+    for (const p of partial.players) {
+      expect(p.salary).toBe(full.players.find((f) => f.playerId === p.playerId)!.salary);
+    }
+    // Priced against only themselves, the same players would cost differently.
+    const alone = priceWeek(pool, settings);
+    expect(alone.players.some((p) => p.salary !== full.players.find((f) => f.playerId === p.playerId)!.salary)).toBe(
+      true,
+    );
   });
 });
 
