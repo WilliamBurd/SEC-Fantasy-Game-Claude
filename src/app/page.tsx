@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { FormMessage } from "@/components/auth/form-message";
+import { PageHeader } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
 import { getProfile, getUser } from "@/lib/auth/dal";
 import { getSupabaseEnv } from "@/lib/supabase/env";
@@ -21,30 +22,36 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   if (profile) {
     return (
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        {params.password === "updated" && (
-          <div className="mb-6">
-            <FormMessage message="Your password has been changed." />
+      <>
+        <PageHeader eyebrow="Welcome back" title={profile.username} />
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+          {params.password === "updated" && (
+            <div className="mb-6">
+              <FormMessage message="Your password has been changed." />
+            </div>
+          )}
+          <p className="text-muted-foreground">Set your lineup before your players kick off.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {SECTIONS.map(({ href, title, text, icon: Icon }) => (
+              <Link key={href} href={href} className="group rounded-xl bg-card p-5 transition-colors hover:bg-accent">
+                <span className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <Icon className="size-5" />
+                </span>
+                <h2 className="mt-3 font-display text-2xl font-bold">{title}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{text}</p>
+              </Link>
+            ))}
           </div>
-        )}
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {profile.username}</h1>
-        <p className="mt-1 text-muted-foreground">Set your lineup before your players kick off.</p>
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {SECTIONS.map(({ href, title, text, icon: Icon }) => (
-            <Link key={href} href={href} className="rounded-xl border p-5 transition-colors hover:bg-accent">
-              <Icon className="size-5" />
-              <h2 className="mt-3 font-semibold">{title}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-            </Link>
-          ))}
-        </div>
-      </main>
+        </main>
+      </>
     );
   }
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-4 py-16">
-      <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">SEC Gridiron 100</h1>
+      <h1 className="font-display text-6xl leading-none font-extrabold sm:text-7xl">
+        SEC Gridiron <span className="text-primary">100</span>
+      </h1>
       <p className="text-lg text-muted-foreground">
         Weekly SEC fantasy football. Draft seven players under a 100-credit cap, score with standard PPR, and
         change anyone whose game hasn&apos;t kicked off yet. Free to play.

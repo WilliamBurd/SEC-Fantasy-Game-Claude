@@ -4,11 +4,12 @@ import { formatKickoff } from "@/lib/lineup/format";
 import type { InjuryStatus, PoolPlayer } from "@/lib/lineup/rules";
 import { cn } from "@/lib/utils";
 
+// Oranges and reds with dark text, so they never read as the gold accent.
 const INJURY_STYLES: Record<InjuryStatus, { short: string; label: string; className: string }> = {
   out: { short: "OUT", label: "Out", className: "bg-red-600 text-white" },
-  doubtful: { short: "D", label: "Doubtful", className: "bg-orange-500 text-white" },
-  questionable: { short: "Q", label: "Questionable", className: "bg-amber-400 text-black" },
-  probable: { short: "P", label: "Probable", className: "bg-emerald-600 text-white" },
+  doubtful: { short: "D", label: "Doubtful", className: "bg-red-400 text-red-950" },
+  questionable: { short: "Q", label: "Questionable", className: "bg-orange-400 text-orange-950" },
+  probable: { short: "P", label: "Probable", className: "bg-emerald-400 text-emerald-950" },
 };
 
 /** A small coloured tag: OUT, D (doubtful), Q (questionable) or P (probable). */
@@ -42,8 +43,8 @@ export function matchup(player: PoolPlayer): string {
 /** Kickoff time, with a lock once the game has started. */
 export function Kickoff({ player, locked }: { player: PoolPlayer; locked: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1", locked && "font-medium text-foreground")}>
-      {locked && <Lock className="size-3" aria-label="Locked" />}
+    <span className={cn("inline-flex items-center gap-1", locked && "font-medium text-foreground/85")}>
+      {locked && <Lock className="size-3 text-primary" strokeWidth={2.5} aria-label="Locked" />}
       {locked ? "Locked · " : ""}
       {formatKickoff(player.kickoffAt)}
     </span>

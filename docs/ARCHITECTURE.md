@@ -4,7 +4,7 @@ How SEC Gridiron 100 fits together: what runs where, where data comes from,
 and how it moves through the system. The product rules are in
 [PRD.md](PRD.md); this document covers how they're built.
 
-Last updated: 2026-09-30, after Phase 5 (leagues and leaderboards).
+Last updated: 2026-09-30, after Phase 5 and the navy-and-gold restyle.
 
 ## Build status
 
@@ -165,6 +165,23 @@ only to other members, so a non-member gets an empty board.
   scheduled (Phase 7) that's Monday's `reconcile-week`.
 - **Profile**: global rank is the user's season rank.
 
+## Look and feel
+
+Navy and gold, dark only: style "C" of three samples the owner compared (a
+calm one, a bold one, and this middle ground).
+
+- **Tokens** live in `src/app/globals.css` (`:root`): navy background and
+  cards, gold `primary`, plus `header`, `locked` and `locked-chip` surfaces.
+  shadcn components pick them up, so most restyling is done there.
+- **Type**: Manrope for text; Barlow Condensed (`font-display`) for page
+  titles, prices, points and ranks. Both load through `next/font`.
+- **Page header** (`src/components/shell/page-header.tsx`): every main page
+  opens with a band holding a small gold label, the title and an optional
+  big gold figure (credits left, a score, member count), over a gold rule.
+- **Gold means "yours / active"**: editable lineup slots, the Save button,
+  the selected tab, the top of the podium. Locked players turn navy with a
+  gold lock. Injury tags use orange and red so they never read as gold.
+
 ## Code layout
 
 | Path | Role |
@@ -174,7 +191,7 @@ only to other members, so a non-member gets an empty board.
 | `src/app/(app)` | Pages for signed-in players with a username: `/lineup`, `/leaderboard`, `/leagues`, `/profile`, `/admin` |
 | `src/app/auth` | Sign-in Server Actions and the email/Google landing routes (`/auth/callback`, `/auth/confirm`) |
 | `src/app/onboarding` | Username picker every new user goes through once |
-| `src/components/shell` | Header, desktop navigation, mobile menu, user dropdown |
+| `src/components/shell` | Header, page header band, desktop navigation, mobile menu, user dropdown |
 | `src/components/lineup` | Lineup builder: slots, budget bar, player list |
 | `src/components/leaderboard`, `src/components/leagues` | Standings table, week/season switch, auto-refresh, league forms |
 | `src/lib/leaderboard`, `src/lib/leagues` | Board weeks and live check, form checks (pure, unit tested) and their data loaders |
@@ -360,6 +377,7 @@ Production: <https://sec-fantasy-game.vercel.app> (Vercel, deploys `main`).
 | 2026-09-30 | Lineup save is update-then-insert, not upsert | Users may update only slot columns; the trigger's messages reach the user unchanged |
 | 2026-09-30 | Leaderboards ranked in the database by one function, with the caller's rights | One definition for both boards; RLS keeps league boards private |
 | 2026-09-30 | A league's creator can't leave it, only delete it | Otherwise nobody could rename or delete the league |
+| 2026-09-30 | Navy and gold, dark only, "middle ground" style | Chosen by the owner from three samples: calm was too plain, bold too loud |
 
 ## Open items
 

@@ -53,7 +53,7 @@ export function PlayerList(props: Props) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <h2 id="players-heading" className="text-lg font-semibold">
+        <h2 id="players-heading" className="font-display text-2xl font-bold">
           Players
         </h2>
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -62,7 +62,7 @@ export function PlayerList(props: Props) {
       </div>
 
       {props.target && (
-        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-primary bg-accent px-3 py-2 text-sm">
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-primary bg-accent px-3 py-2 text-sm">
           <span>
             Choosing for <strong>{props.target}</strong>
           </span>
@@ -93,8 +93,8 @@ export function PlayerList(props: Props) {
               aria-pressed={filters.position === pos}
               onClick={() => setFilters({ position: pos })}
               className={cn(
-                "h-8 shrink-0 rounded-full border px-3 text-sm font-medium transition-colors",
-                filters.position === pos ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent",
+                "h-9 shrink-0 rounded-full border px-3.5 text-sm font-semibold transition-colors",
+                filters.position === pos ? "border-primary bg-primary font-bold text-primary-foreground" : "border-input hover:bg-accent",
               )}
             >
               {pos === "ALL" ? "All" : pos}
@@ -153,11 +153,11 @@ export function PlayerList(props: Props) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <p className="mt-6 rounded-xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
           No players match. Try clearing the search or filters.
         </p>
       ) : (
-        <ul className="mt-3 divide-y rounded-xl border">
+        <ul className="mt-3 divide-y overflow-hidden rounded-xl bg-card">
           {visible.map((player) => (
             <PlayerRow key={player.id} player={player} {...props} />
           ))}
@@ -188,7 +188,7 @@ function PlayerRow({ player, draft, check, onAdd, onRemove, canEditSlot, now, re
       </Button>
     ) : (
       <span className="flex items-center gap-1 text-xs font-medium">
-        <Check className="size-3.5" /> {slotByKey(inSlot).label}
+        <Check className="size-3.5 text-primary" /> {slotByKey(inSlot).label}
       </span>
     );
   } else if (result?.ok) {
@@ -202,10 +202,10 @@ function PlayerRow({ player, draft, check, onAdd, onRemove, canEditSlot, now, re
   }
 
   return (
-    <li className={cn("flex items-center gap-3 px-3 py-2.5 text-sm", inSlot && "bg-accent/60", locked && !readOnly && "opacity-70")}>
+    <li className={cn("flex items-center gap-3 px-3 py-2.5 text-sm", inSlot && "bg-accent", locked && !readOnly && "bg-locked")}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate font-medium">{player.name}</span>
+          <span className="truncate font-bold">{player.name}</span>
           <InjuryBadge injury={player.injury} />
         </div>
         <div className="truncate text-xs text-muted-foreground">{matchup(player)}</div>
@@ -215,9 +215,9 @@ function PlayerRow({ player, draft, check, onAdd, onRemove, canEditSlot, now, re
         {injury && <div className="truncate text-xs text-muted-foreground">{injury}</div>}
       </div>
       <div className="flex shrink-0 flex-col items-end text-right">
-        <span className="font-semibold tabular-nums">{player.salary}</span>
+        <span className="font-display text-xl leading-none font-bold">{player.salary}</span>
         <span className="text-[11px] text-muted-foreground tabular-nums">{formatPpg(player.blendedPpg)} PPG</span>
-        {showPoints && locked && <span className="text-[11px] font-medium tabular-nums">{player.weekPoints.toFixed(1)} pts</span>}
+        {showPoints && locked && <span className="text-[11px] font-semibold text-primary">{player.weekPoints.toFixed(1)} pts</span>}
       </div>
       <div className="flex w-[4.5rem] shrink-0 justify-end">{action}</div>
     </li>
